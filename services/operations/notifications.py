@@ -29,7 +29,8 @@ def route_event(event: dict, *, channels: list[str], message: str) -> list[dict]
 
 def _post(url: str, payload: dict, headers: dict | None = None) -> None:
     request = urllib.request.Request(url, data=json.dumps(payload).encode(),
-                                     headers={"Content-Type": "application/json", **(headers or {})}, method="POST")
+                                     headers={"Content-Type": "application/json", "User-Agent": "FX-Local/1.0",
+                                              **(headers or {})}, method="POST")
     with urllib.request.urlopen(request, timeout=8) as response:
         if response.status >= 300:
             raise RuntimeError(f"notification provider returned HTTP {response.status}")
@@ -48,4 +49,6 @@ def process_due_deliveries() -> None:
                 _post(webhook, {"content": item["rendered_message"][:2000]})
                 update_delivery(item["delivery_id"], status="SENT")
         except (OSError, RuntimeError, urllib.error.URLError) as exc:
-            update_delivery(item["delivery_id"], status="RETRY", error=type(exc).__name__)
+            code = getattr(exc, "code", None)
+            error = f"HTTP_{code}" if code else type(exc).__name__
+            update_delivery(item["delivery_id"], status="RETRY", error=error)

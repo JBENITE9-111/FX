@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from services.events.contracts import SignalState, StandardSignal
 from services.operations import store
-from services.operations.notifications import channel_health, route_event
+from services.operations.notifications import _post, channel_health, route_event
 from services.operations.reports import generate_report, render_markdown
 
 
@@ -77,6 +77,13 @@ class OperationsFoundationTests(unittest.TestCase):
         delivery = store.list_deliveries()[0]
         self.assertEqual(delivery["status"], "SENT")
         self.assertNotIn("discord.invalid", str(delivery))
+
+    def test_discord_transport_identifies_the_fx_application(self):
+        with patch("urllib.request.urlopen") as opened:
+            opened.return_value.__enter__.return_value.status = 204
+            _post("https://discord.invalid/webhook", {"content": "test"})
+        request = opened.call_args.args[0]
+        self.assertEqual(request.get_header("User-agent"), "FX-Local/1.0")
 
     def test_bot_report_records_missing_evidence_and_exports_markdown(self):
         report = generate_report("bot", "global_scanner")
