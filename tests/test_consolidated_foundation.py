@@ -2,12 +2,13 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from services.campaigns.store import CampaignStore
 from services.local_paper import broker
 from services.operations import store as operations_store
 from services.learning.status import learning_overview
-from services.instruments.training_universe import search_training_catalog
+from services.instruments.training_universe import search_training_catalog, universe
 from backend.app.services.bots.runtime import bots
 from backend.app.services.research.grounded_answer import (
     grounded_context_answer,
@@ -98,6 +99,26 @@ class ConsolidatedFoundationTests(unittest.TestCase):
         self.assertTrue(all(not row["eligible"] for row in result["records"]))
         self.assertTrue(all(row["stage"] != "REJECTED" for row in result["records"]))
 
+    def test_learning_summary_separates_current_models_from_historical_runs(self):
+        def run(trained_at, auc):
+            return {
+                "symbol": "AAPL", "timeframe": "1h", "horizon": 5,
+                "model": "xgboost", "trained_at": trained_at,
+                "test_metrics": {"auc": auc, "balanced_accuracy": auc},
+                "walk_forward": {"average_auc": auc, "average_balanced_accuracy": auc},
+            }
+
+        registry = {"old": run("2026-01-01T00:00:00Z", 0.49),
+                    "new": run("2026-02-01T00:00:00Z", 0.56)}
+        with patch("services.learning.status.load_registry", return_value=registry), \
+             patch("services.learning.status.catalog_asset_classes", return_value={"AAPL": "Stocks"}):
+            result = learning_overview()
+        self.assertEqual(result["summary"]["total_runs"], 2)
+        self.assertEqual(result["summary"]["current_models"], 1)
+        self.assertEqual(result["summary"]["historical_runs"], 1)
+        self.assertEqual(result["summary"]["examining"], 1)
+        self.assertTrue(next(row for row in result["records"] if row["record_id"] == "new")["is_current"])
+
     def test_market_price_chat_has_verified_non_llm_fallback(self):
         answer = grounded_context_answer(
             "What is the gold price right now?",
@@ -113,6 +134,16 @@ class ConsolidatedFoundationTests(unittest.TestCase):
         self.assertTrue(any(row["symbol"] == "MSFT" for row in stocks["instruments"]))
         self.assertGreater(stocks["catalog_total"], 4_000)
         self.assertGreaterEqual(forex["matched"], 50)
+
+    def test_continuous_learning_uses_a_bounded_global_multi_asset_universe(self):
+        targets = universe()
+        self.assertGreaterEqual(len(targets), 40)
+        self.assertLessEqual(len(targets), 64)
+        self.assertEqual(
+            {"Stocks", "ETFs", "Indices", "Forex", "Commodities", "Crypto", "Futures"},
+            {item["asset_class"] for item in targets},
+        )
+        self.assertTrue({"MSFT", "EUR/JPY", "XRP/USD", "ES.F"} <= {item["symbol"] for item in targets})
 
     def test_chat_resolves_named_market_and_answers_system_questions_locally(self):
         self.assertEqual(identify_symbols("What is the gold price? ")[0], "XAU/USD")

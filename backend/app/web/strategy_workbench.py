@@ -120,8 +120,15 @@ margin-bottom:25px
 
 .controls {{
 display:flex;
+flex-wrap:wrap;
 gap:8px;
 margin-bottom:20px
+}}
+
+.catalog-status {{
+width:100%;
+color:#8d9299;
+font-size:11px
 }}
 
 input,select {{
@@ -255,10 +262,20 @@ else
 
 <div class="controls">
 
+<select id="assetClass" onchange="changeAssetClass()" aria-label="Asset class">
+<option>Stocks</option><option>ETFs</option><option>Indices</option><option>Forex</option>
+<option>Commodities</option><option>Crypto</option><option>Futures</option>
+</select>
+
+<input id="instrumentSearch" placeholder="Search name or symbol" oninput="scheduleCatalogSearch()" aria-label="Search global instruments">
+
+<select id="instrument" onchange="applyInstrument()" aria-label="Global instrument list"></select>
+
 <input
 id="symbol"
 value="AAPL"
-placeholder="Symbol"
+placeholder="Optional manual symbol"
+aria-label="Selected or manual symbol"
 >
 
 <select
@@ -282,6 +299,8 @@ onclick="analyse()"
 >
 Run Real Analysis
 </button>
+
+<div id="catalogStatus" class="catalog-status">Loading the global market catalog…</div>
 
 </div>
 
@@ -344,6 +363,51 @@ const strategyId =
 "{strategy_id}";
 
 let proposalId = null;
+let catalogRows = [];
+let catalogTimer = null;
+
+function scheduleCatalogSearch() {{
+    clearTimeout(catalogTimer);
+    catalogTimer = setTimeout(loadCatalog, 250);
+}}
+
+async function changeAssetClass() {{
+    document.getElementById("instrumentSearch").value = "";
+    await loadCatalog();
+}}
+
+function applyInstrument() {{
+    const row = catalogRows.find(item => item.instrument_id === document.getElementById("instrument").value);
+    if (!row) return;
+    document.getElementById("symbol").value = row.symbol;
+    document.getElementById("timeframe").value = row.timeframe;
+}}
+
+async function loadCatalog() {{
+    const assetClass = document.getElementById("assetClass").value;
+    const query = document.getElementById("instrumentSearch").value.trim();
+    const status = document.getElementById("catalogStatus");
+    const params = new URLSearchParams({{asset_class:assetClass,limit:"100"}});
+    if (query) params.set("q", query);
+    status.textContent = "Searching the local global catalog…";
+    try {{
+        const response = await fetch("/api/learning/catalog?" + params.toString());
+        if (!response.ok) throw new Error("catalog request failed");
+        const payload = await response.json();
+        catalogRows = payload.instruments || [];
+        const select = document.getElementById("instrument");
+        select.replaceChildren();
+        catalogRows.forEach(item => select.add(new Option(item.name + " · " + item.symbol + " · " + item.market, item.instrument_id)));
+        if (!catalogRows.length) select.add(new Option("No matching instruments", ""));
+        const matched = Number(payload.matched || 0);
+        status.textContent = matched.toLocaleString() + " matching " + assetClass.toLowerCase()
+            + (matched > catalogRows.length ? " · showing first " + catalogRows.length : "")
+            + " · search by name or symbol to narrow the list.";
+        applyInstrument();
+    }} catch {{
+        status.textContent = "The global instrument catalog is temporarily unavailable.";
+    }}
+}}
 
 
 function percent(value) {{
@@ -748,6 +812,8 @@ async function approveProposal() {{
         true;
 
 }}
+
+loadCatalog();
 
 </script>
 

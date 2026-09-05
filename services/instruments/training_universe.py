@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -12,28 +13,69 @@ DEFAULT_TIMEFRAMES = {
     "Forex": "1h", "Crypto": "1h", "Commodities": "4h",
 }
 
-APPROVED_TRAINING_UNIVERSE = (
-    {"instrument_id": "US_AAPL", "symbol": "AAPL", "name": "Apple", "asset_class": "Stocks", "market": "United States", "universe": "US Mega Caps", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "US_SPY", "symbol": "SPY", "name": "S&P 500 ETF", "asset_class": "ETFs", "market": "United States", "universe": "US Major Indices", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "US_QQQ", "symbol": "QQQ", "name": "Nasdaq-100 ETF", "asset_class": "ETFs", "market": "United States", "universe": "US Major Indices", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "IDX_SPX500", "symbol": "SPX500/USD", "name": "S&P 500 reference index", "asset_class": "Indices", "market": "United States", "universe": "Major Indices", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "IDX_NAS100", "symbol": "NAS100/USD", "name": "Nasdaq-100 reference index", "asset_class": "Indices", "market": "United States", "universe": "Major Indices", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "IDX_US30", "symbol": "US30/USD", "name": "Dow Jones 30 reference index", "asset_class": "Indices", "market": "United States", "universe": "Major Indices", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "IDX_US2000", "symbol": "US2000/USD", "name": "Russell 2000 reference index", "asset_class": "Indices", "market": "United States", "universe": "Major Indices", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "IDX_DE30", "symbol": "DE30/EUR", "name": "DAX reference index", "asset_class": "Indices", "market": "Germany", "universe": "Major Indices", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "IDX_UK100", "symbol": "UK100/GBP", "name": "FTSE 100 reference index", "asset_class": "Indices", "market": "United Kingdom", "universe": "Major Indices", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "IDX_JP225", "symbol": "JP225/USD", "name": "Nikkei 225 reference index", "asset_class": "Indices", "market": "Japan", "universe": "Major Indices", "timeframe": "1d", "horizon": 5},
-    {"instrument_id": "FX_EURUSD", "symbol": "EUR/USD", "name": "Euro / US Dollar", "asset_class": "Forex", "market": "Majors", "universe": "Major Pairs", "timeframe": "1h", "horizon": 5},
-    {"instrument_id": "FX_GBPUSD", "symbol": "GBP/USD", "name": "British Pound / US Dollar", "asset_class": "Forex", "market": "Majors", "universe": "Major Pairs", "timeframe": "1h", "horizon": 5},
-    {"instrument_id": "FX_USDJPY", "symbol": "USD/JPY", "name": "US Dollar / Japanese Yen", "asset_class": "Forex", "market": "Majors", "universe": "Major Pairs", "timeframe": "1h", "horizon": 5},
-    {"instrument_id": "CMD_GOLD", "symbol": "XAU/USD", "name": "Gold", "asset_class": "Commodities", "market": "Metals", "universe": "Precious Metals", "timeframe": "4h", "horizon": 5},
-    {"instrument_id": "CRYPTO_BTC", "symbol": "BTC/USD", "name": "Bitcoin", "asset_class": "Crypto", "market": "Large Cap", "universe": "Core Crypto", "timeframe": "1h", "horizon": 5},
-    {"instrument_id": "CRYPTO_ETH", "symbol": "ETH/USD", "name": "Ethereum", "asset_class": "Crypto", "market": "Large Cap", "universe": "Core Crypto", "timeframe": "1h", "horizon": 5},
+GLOBAL_CORE_SYMBOLS = (
+    # Global equities: United States, Europe, Japan, South Korea, United Kingdom and Australia.
+    "AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "JPM",
+    "XOM", "NKE", "SAP", "ASML", "7203.T", "005930.KS", "SHEL", "BHP",
+    # Diversified and thematic exchange-traded funds.
+    "SPY", "QQQ", "IWM", "EEM", "GLD",
+    # Regional equity indices.
+    "SPX500/USD", "NAS100/USD", "DE30/EUR", "UK100/GBP", "EU50/EUR",
+    "HK33/HKD", "JP225/USD", "AU200/AUD",
+    # Liquid global currency pairs.
+    "EUR/USD", "GBP/USD", "USD/JPY", "EUR/JPY", "AUD/USD", "USD/CHF",
+    # Metals and energy commodities.
+    "XAU/USD", "XAG/USD", "WTICO/USD", "BCO/USD", "XCU/USD",
+    # Large-cap crypto markets.
+    "BTC/USD", "ETH/USD", "XRP/USD", "SOL/USD", "BNB/USD", "ADA/USD",
+    # Major index and metal futures.
+    "ES.F", "NQ.F", "GC.F", "SI.F",
 )
 
 
 def universe() -> list[dict]:
-    return [dict(item) for item in APPROVED_TRAINING_UNIVERSE]
+    """Return a bounded global research universe plus every enabled Favorite.
+
+    The full catalog remains available for one-off/batch experiments. Continuously
+    training thousands of instruments would waste compute and multiply-test the
+    same weak hypotheses, so autopilot uses representative global coverage capped
+    by ``FX_GLOBAL_TRAINING_LIMIT`` (64 by default).
+    """
+    catalog = {item["symbol"]: dict(item) for item in global_training_catalog()}
+    selected: list[dict] = []
+    seen: set[str] = set()
+
+    try:
+        from services.operations.store import list_favorites
+        favorites = [item for item in list_favorites() if item.get("enabled")]
+    except Exception:
+        favorites = []
+
+    for favorite in favorites:
+        symbol = str(favorite.get("symbol") or "")
+        base = catalog.get(symbol)
+        if not base or symbol in seen:
+            continue
+        base.update({
+            "instrument_id": favorite.get("instrument_id") or base["instrument_id"],
+            "timeframe": favorite.get("execution_timeframe") or base["timeframe"],
+            "horizon": 5,
+            "universe": "Enabled Favorites",
+        })
+        selected.append(base)
+        seen.add(symbol)
+
+    for symbol in GLOBAL_CORE_SYMBOLS:
+        base = catalog.get(symbol)
+        if not base or symbol in seen:
+            continue
+        base["universe"] = "Approved Global Core"
+        selected.append(base)
+        seen.add(symbol)
+
+    limit = max(1, int(os.getenv("FX_GLOBAL_TRAINING_LIMIT", "64")))
+    return selected[:limit]
+
 
 
 def _asset_class(row: dict) -> str | None:

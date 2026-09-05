@@ -376,7 +376,7 @@ def determine_status(
     if (
         auc is None
         or auc < 0.52
-        or balanced < 0.51
+        or balanced < 0.52
     ):
 
         return (
@@ -402,7 +402,7 @@ def determine_status(
             walk_balanced
             is None
         )
-        or walk_balanced < 0.51
+        or walk_balanced < 0.52
     ):
 
         return (

@@ -51,7 +51,7 @@ class ContinuousLearningController:
             cpu_percent = self._cpu_percent()
             public = {
                 key: value for key, value in self._state.items()
-                if key != "diagnostic"
+                if key != "diagnostic" and not key.startswith("_")
             }
             return {
                 **public,
@@ -62,6 +62,7 @@ class ContinuousLearningController:
                 "load_1m": load_1m,
                 "max_load": float(os.getenv("FX_TRAINING_MAX_LOAD", "6.0")),
                 "resource_retry_seconds": int(os.getenv("FX_TRAINING_RESOURCE_RETRY_SECONDS", "30")),
+                "failed_target_retry_seconds": int(os.getenv("FX_FAILED_TRAINING_RETRY_SECONDS", "21600")),
                 "pause_reason": (
                     "CPU use is above the configured safe training limit. The worker remains alive and retries automatically."
                     if self._state.get("status") == "PAUSED_RESOURCE_PRESSURE" else None
@@ -104,6 +105,15 @@ class ContinuousLearningController:
             return False
 
     @staticmethod
+    def _target_key(target: dict) -> str:
+        return f"{target['symbol']}|{target['timeframe']}|{target['horizon']}"
+
+    def _failed_recently(self, target: dict) -> bool:
+        retry_after = float(os.getenv("FX_FAILED_TRAINING_RETRY_SECONDS", "21600"))
+        entry = (self._state.get("_failed_targets") or {}).get(self._target_key(target)) or {}
+        return time.time() - float(entry.get("attempted_at") or 0) < retry_after
+
+    @staticmethod
     def _cpu_percent() -> float | None:
         try:
             output = subprocess.run(
@@ -131,24 +141,34 @@ class ContinuousLearningController:
                     self._update(status="PAUSED_RESOURCE_PRESSURE", current=None)
                 if self._stop.is_set():
                     break
-                if self._recently_trained(target):
+                if self._recently_trained(target) or self._failed_recently(target):
                     continue
                 did_work = True
                 self._update(status="RUNNING", current=target, stage="FETCHING_AND_TRAINING")
                 try:
                     result = train_all(target["symbol"], target["timeframe"], target["horizon"])
                     completed += 1
+                    failed_targets = dict(self._state.get("_failed_targets") or {})
+                    failed_targets.pop(self._target_key(target), None)
                     self._update(completed_jobs=completed, last_completed=target, last_result={
                         "elapsed_seconds": result.get("elapsed_seconds"),
                         "models": len(result.get("models", [])),
-                    }, current=None, stage="VALIDATION_RECORDED")
+                    }, _failed_targets=failed_targets, current=None, stage="VALIDATION_RECORDED")
                 except Exception as exc:
                     failed += 1
+                    failed_targets = dict(self._state.get("_failed_targets") or {})
+                    previous = failed_targets.get(self._target_key(target)) or {}
+                    failed_targets[self._target_key(target)] = {
+                        "attempted_at": time.time(),
+                        "attempts": int(previous.get("attempts") or 0) + 1,
+                        "error_type": type(exc).__name__,
+                    }
                     self._update(
                         failed_jobs=failed,
                         last_failed=target,
                         last_error="This training target could not be completed. FX will retry after the waiting period.",
                         diagnostic={"type": type(exc).__name__, "message": str(exc)},
+                        _failed_targets=failed_targets,
                         current=None,
                         stage="JOB_FAILED",
                     )
