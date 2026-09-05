@@ -757,11 +757,11 @@ DEMOTION_TRIGGERS = {
 
 ---
 
-### Task 23: Build Telegram Alerts
+### Task 23: Build Discord Alerts
 
-**Why this matters**: You can't watch the dashboard 24/7. Telegram notifications tell you when something important happens — trade taken, target hit, bot demoted, error occurred.
+**Why this matters**: You can't watch the dashboard 24/7. Discord notifications tell you when something important happens — trade taken, target hit, bot demoted, error occurred.
 
-**What to create**: `services/notifications/telegram.py`
+**What to create**: `services/notifications/discord.py`
 
 Events to notify:
 - Trade opened (instrument, side, entry, stop, target)
@@ -771,7 +771,7 @@ Events to notify:
 - Daily summary (trades, P&L, equity, readiness)
 - Error/critical failure
 
-Setup: Create a Telegram bot via @BotFather (free), get the token, add to `.env`.
+Setup: Create a Discord channel webhook and add `DISCORD_WEBHOOK_URL` to `.env`.
 
 **Dependencies**: None (can run in parallel)
 
@@ -882,7 +882,7 @@ Tracks:
 - Strategy drift (is performance degrading?)
 - System resource usage (CPU, memory, disk)
 
-Alerts via Telegram (Task 23) when:
+Alerts via Discord (Task 23) when:
 - Database > 500MB
 - API p95 > 5 seconds
 - Data feed stale > 5 minutes
@@ -934,6 +934,6 @@ After all 30 tasks:
 7. ✅ **Profit targeting** — set \$1 → \$20, bot trades until target is hit then stops
 8. ✅ **Safety controls** — cooling periods, daily limits, demotion, LiveGate for real money
 9. ✅ **Dashboard** — real-time view of everything the bot is doing and learning
-10. ✅ **Telegram alerts** — know immediately when something happens
+10. ✅ **Discord alerts** — know immediately when something happens
 11. ✅ **33+ automated tests** — catch bugs before they reach your bot
 12. ✅ **Production-ready** — Docker deployment, backups, monitoring, health checks

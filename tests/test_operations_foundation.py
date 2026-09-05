@@ -3,6 +3,7 @@ import time
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from pydantic import ValidationError
 
@@ -59,8 +60,23 @@ class OperationsFoundationTests(unittest.TestCase):
 
     def test_unconfigured_external_channels_are_truthful(self):
         health = channel_health()
-        self.assertIn(health["telegram"]["status"], {"NOT_CONFIGURED", "CONFIGURED"})
+        self.assertEqual(set(health), {"app", "discord"})
         self.assertIn(health["discord"]["status"], {"NOT_CONFIGURED", "CONFIGURED"})
+
+    def test_discord_delivery_uses_backend_webhook_without_exposing_it(self):
+        event = store.record_event(
+            event_type="notification.test", source="test", subject_type="system",
+            subject_id="discord", state="TEST", payload={}, dedup_key="discord:test",
+        )
+        with patch.dict("os.environ", {"DISCORD_WEBHOOK_URL": "https://discord.invalid/webhook"}), \
+             patch("services.operations.notifications._post") as post:
+            route_event(event, channels=["discord"], message="Paper-only connection test")
+        post.assert_called_once_with(
+            "https://discord.invalid/webhook", {"content": "Paper-only connection test"}
+        )
+        delivery = store.list_deliveries()[0]
+        self.assertEqual(delivery["status"], "SENT")
+        self.assertNotIn("discord.invalid", str(delivery))
 
     def test_bot_report_records_missing_evidence_and_exports_markdown(self):
         report = generate_report("bot", "global_scanner")

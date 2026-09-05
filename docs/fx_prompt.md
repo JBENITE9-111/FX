@@ -32,7 +32,7 @@ For your FX project, I would recommend the next step be a **forensic extraction 
 1. extract every useful concept from the text **and images**;
 2. separate useful ideas from generic/weak prompt-engineering advice;
 3. improve each concept to institutional/quant standards;
-4. map each idea to your existing bots, supervisor, favorites/alerts, Telegram/Discord signals, backtesting and paper-training system;
+4. map each idea to your existing bots, supervisor, favorites/alerts, Discord signals, backtesting and paper-training system;
 5. define exactly **which bot should own each responsibility**;
 6. turn the useful prompts into reusable internal prompt/contracts and schemas;
 7. add missing safeguards such as data freshness, regime detection, transaction costs, confidence calibration, walk-forward validation, leakage protection and risk gates;
@@ -1020,7 +1020,6 @@ You can then deliver the same report to:
 
 ```text
 App
-Telegram
 Discord
 ```
 
@@ -1442,7 +1441,7 @@ Every 15 minutes:
 - no major event risk
 ```
 
-Then Telegram could send:
+Then Discord could send:
 
 ```text
 FX SIGNAL — EUR/USD
@@ -2447,7 +2446,6 @@ Every:
 5m / 15m / 1h / daily
 
 Notify:
-Telegram
 Discord
 App
 
@@ -2539,7 +2537,7 @@ The intended direction is:
 18. Add **confidence calibration**.
 19. Add **signal expiry** and **invalidation rules**.
 20. Make **reports first-class objects**.
-21. Upgrade Favorites into a **persistent intelligence watchtower** with configurable scans and Telegram/Discord/App alerts.
+21. Upgrade Favorites into a **persistent intelligence watchtower** with configurable scans and Discord/App alerts.
 22. Keep all bot learning **controlled, measured, and reversible**.
 23. Do not let a bot change itself simply because of a few losses.
 24. Preserve reproducibility using versions, timestamps, sources, model IDs, and strategy IDs.

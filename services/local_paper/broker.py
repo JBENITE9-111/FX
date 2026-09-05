@@ -1134,7 +1134,7 @@ def submit_market_order(
     )
 
     # The canonical operations journal is append-only evidence. Notification
-    # delivery consumes this record; Telegram/Discord are never the ledger.
+    # delivery consumes this record; Discord is never the ledger.
     from services.operations.store import record_event
     record_event(
         event_type="paper.position_closed" if reducing else "paper.order_filled",

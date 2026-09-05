@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -37,7 +38,7 @@ class FavoriteInput(BaseModel):
     bot_id: str = "trading_team"
     min_evidence: float | None = None
     min_rr: float = Field(default=1.5, ge=1, le=20)
-    channels: list[str] = Field(default_factory=lambda: ["app"])
+    channels: list[str] = Field(default_factory=lambda: ["app", "discord"])
     event_types: list[str] = Field(default_factory=lambda: ["signal.state_changed", "risk.vetoed"])
 
 
@@ -51,7 +52,7 @@ class ScheduleInput(BaseModel):
     context_timeframes: list[str] = Field(default_factory=lambda: ["4h"])
     strategy_id: str = "model_council"
     bot_id: str = "trading_team"
-    channels: list[str] = Field(default_factory=lambda: ["app"])
+    channels: list[str] = Field(default_factory=lambda: ["app", "discord"])
     event_types: list[str] = Field(default_factory=lambda: ["analysis.completed", "signal.state_changed", "risk.vetoed"])
 
 
@@ -71,6 +72,24 @@ def _catalog_match(instrument_id: str, symbol: str, asset_class: str) -> dict | 
 def operations_status():
     return {"paper_only": True, "scheduler": scheduler.status(), "channels": channel_health(),
             "favorites": len(list_favorites()), "schedules": len(list_schedules())}
+
+
+@router.post("/api/operations/notifications/discord/test")
+def discord_test():
+    if channel_health()["discord"]["status"] != "CONFIGURED":
+        raise HTTPException(409, "Set DISCORD_WEBHOOK_URL in the backend environment, then restart FX.")
+    event = record_event(
+        event_type="notification.test", source="operations", subject_type="system",
+        subject_id="discord", state="TEST", payload={"paper_only": True},
+        dedup_key=f"discord-test:{int(time.time())}",
+    )
+    queued = route_event(
+        event, channels=["discord"],
+        message="FX connection test · Discord notifications are connected · Research and paper trading only.",
+    )
+    delivery_id = queued[0]["delivery_id"] if queued else None
+    delivery = next((item for item in list_deliveries(20) if item["delivery_id"] == delivery_id), None)
+    return {"ok": bool(delivery and delivery["status"] == "SENT"), "delivery": delivery}
 
 
 @router.get("/api/operations/catalog")
@@ -274,20 +293,21 @@ OPERATIONS_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta nam
 </style></head><body><header><b>FX · Favorites & Operations</b><a href="/terminal">← Market Workspace</a></header><main class="wrap">
 <h1>Favorites Command Center</h1><div class="notice"><b>Research + local paper only.</b> Analysis frequency does not create trades. Repeated states are deduplicated. The local scheduler requires this Mac and FX to remain running.</div>
 <section class="card" style="margin-top:14px"><h2>Add a verified instrument</h2><div class="row"><select id="asset"><option>Stocks</option><option>Forex</option><option>Crypto</option><option>Indices</option><option>Commodities</option><option>ETFs</option><option>Futures</option></select><input id="search" placeholder="Search symbol or name"><select id="instrument" style="min-width:330px"></select><select id="tf"><option>5m</option><option>15m</option><option>1h</option><option>4h</option><option>1d</option></select><button class="primary" onclick="addFavorite()">★ Add favorite</button></div><p id="catalogNote" class="muted"></p></section>
-<div class="tabs"><button onclick="refreshAll()">Refresh</button><span id="health" class="badge">Loading health…</span></div><div id="favorites" class="grid"></div>
+<div class="tabs"><button onclick="refreshAll()">Refresh</button><button onclick="testDiscord()">Test Discord</button><span id="health" class="badge">Loading health…</span></div><div id="favorites" class="grid"></div>
 <section class="card"><h2>Generate evidence report</h2><div class="row"><select id="reportType"><option>system</option><option>bot</option><option>strategy</option><option>signal</option><option>favorite</option></select><input id="reportSubject" value="fx-system" placeholder="Identity"><button class="primary" onclick="makeReport()">Generate report</button></div><div id="reportOutput" class="muted" style="margin-top:14px">No report selected.</div></section>
 <div class="grid"><section class="card"><h2>Recent events</h2><div id="events" class="muted"></div></section><section class="card"><h2>Notification deliveries</h2><div id="deliveries" class="muted"></div></section></div>
 </main><script>
 let catalog=[]; const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function loadCatalog(){let q=document.getElementById('search').value;let a=document.getElementById('asset').value;let d=await fetch(`/api/operations/catalog?asset_class=${encodeURIComponent(a)}&query=${encodeURIComponent(q)}&limit=200`).then(r=>r.json());catalog=d.instruments;instrument.innerHTML=catalog.map((x,i)=>`<option value="${i}">${esc(x.name)} · ${esc(x.symbol)} · ${esc(x.market)}</option>`).join('');catalogNote.textContent=`${d.matched.toLocaleString()} verified matches. Showing up to 200.`}
 asset.onchange=loadCatalog;search.oninput=()=>{clearTimeout(window.st);window.st=setTimeout(loadCatalog,250)};
-async function addFavorite(){let x=catalog[+instrument.value];if(!x)return;await fetch('/api/operations/favorites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instrument_id:x.instrument_id,symbol:x.symbol,name:x.name,asset_class:x.asset_class,execution_timeframe:tf.value,context_timeframes:['4h'],strategy_id:'trend_following',bot_id:'trading_team',channels:['app']})});refreshAll()}
+async function addFavorite(){let x=catalog[+instrument.value];if(!x)return;await fetch('/api/operations/favorites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instrument_id:x.instrument_id,symbol:x.symbol,name:x.name,asset_class:x.asset_class,execution_timeframe:tf.value,context_timeframes:['4h'],strategy_id:'trend_following',bot_id:'trading_team',channels:['app','discord']})});refreshAll()}
 async function removeFavorite(id){await fetch(`/api/operations/favorites/${id}`,{method:'DELETE'});refreshAll()}
 async function runFavorite(id){await fetch(`/api/operations/favorites/${id}/run`,{method:'POST'});refreshAll()}
-async function scheduleFavorite(id){await fetch('/api/operations/schedules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({favorite_id:id,action:'analyze_favorite',interval_minutes:10,channels:['app'],event_types:['analysis.completed','signal.state_changed','risk.vetoed']})});refreshAll()}
+async function scheduleFavorite(id){await fetch('/api/operations/schedules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({favorite_id:id,action:'analyze_favorite',interval_minutes:10,channels:['app','discord'],event_types:['analysis.completed','signal.state_changed','risk.vetoed']})});refreshAll()}
+async function testDiscord(){let response=await fetch('/api/operations/notifications/discord/test',{method:'POST'});let data=await response.json();health.textContent=response.ok&&data.ok?'Discord test delivered':(data.detail||'Discord delivery failed');health.className='badge '+(response.ok&&data.ok?'ok':'warn')}
 function readable(v){if(v===null||v===undefined||v==='')return 'Unknown';if(Array.isArray(v))return v.length?`<ul>${v.map(x=>`<li>${readable(x)}</li>`).join('')}</ul>`:'None recorded';if(typeof v==='object')return Object.entries(v).map(([k,z])=>`<div style="margin:4px 0"><b>${esc(k.replaceAll('_',' '))}:</b> ${readable(z)}</div>`).join('');return esc(v)}
 async function makeReport(){let response=await fetch('/api/operations/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_type:reportType.value,subject_id:reportSubject.value})});let d=await response.json();if(!response.ok){reportOutput.textContent=d.detail||'Report failed.';return}let r=d.report;reportOutput.innerHTML=`<h3>${esc(r.title)}</h3><p><span class="badge">${esc(r.status)}</span> <a href="/api/operations/reports/${r.report_id}.md" target="_blank">Export Markdown</a></p>`+Object.entries(r.body||{}).map(([k,v])=>`<details><summary><b>${esc(k.replaceAll('_',' '))}</b></summary><div style="padding:8px 0">${readable(v)}</div></details>`).join('')}
 function row(x){return `<div><b>${esc(x.event_type||x.channel)}</b> · ${esc(x.state||x.status||'')}<br><span class="muted">${new Date(1000*(x.occurred_at||x.requested_at)).toLocaleString()}</span></div><hr style="border-color:#24282e;border-width:1px 0 0">`}
-async function refreshAll(){let [s,f,e,d,sc]=await Promise.all(['/api/operations/status','/api/operations/favorites','/api/operations/events?limit=50','/api/operations/deliveries?limit=12','/api/operations/schedules'].map(u=>fetch(u).then(r=>r.json())));health.textContent=`Scheduler ${s.scheduler.status} · App ${s.channels.app.status} · Telegram ${s.channels.telegram.status} · Discord ${s.channels.discord.status}`;health.className='badge '+(s.scheduler.status==='HEALTHY'?'ok':'warn');let counts={},intervals={};(sc.schedules||[]).forEach(x=>{counts[x.favorite_id]=(counts[x.favorite_id]||0)+1;intervals[x.favorite_id]=x.interval_minutes});let latest={};(e.events||[]).filter(x=>x.event_type==='analysis.completed').forEach(x=>{if(!latest[x.subject_id])latest[x.subject_id]=x});favorites.innerHTML=(f.favorites||[]).map(x=>{let ev=latest[x.favorite_id],p=ev?.payload||{};let brief=ev?`<div class="notice" style="margin:10px 0"><b>10-minute brief: ${esc(p.entry_decision||'WAIT')}</b> · bias ${esc(p.research_bias||'NO_TRADE')}<br><span class="muted">Reference ${esc(p.reference_price??'Unknown')} · stop ${esc(p.stop??'Unknown')} · TP1 ${esc(p.target_1??'Unknown')} · TP2 ${esc(p.target_2??'Unknown')}<br>Data as of ${esc(p.market_data_asof_raw||'Unknown')} · checked ${new Date(ev.occurred_at*1000).toLocaleString()}<br>${esc(ev.provider||x.provider)} · Risk ${esc(p.risk_decision||'BLOCK')}</span></div>`:'';return `<article class="card"><div class="row" style="justify-content:space-between"><h2>★ ${esc(x.symbol)}</h2><span class="badge ${x.risk_state==='BLOCK'?'warn':'ok'}">${esc(x.state)}</span></div><p>${esc(x.name)} · ${esc(x.asset_class)}</p><p class="muted">${esc(x.provider)} · ${esc(x.execution_timeframe)}<br>Strategy: ${esc(x.strategy_id)} · Squad: ${esc(x.bot_id)}<br>Risk: ${esc(x.risk_state)} · Monitor: ${intervals[x.favorite_id]?`every ${intervals[x.favorite_id]} min`:'off'}</p>${brief}<div class="row"><button onclick="runFavorite('${x.favorite_id}')">Run analysis</button><button onclick="scheduleFavorite('${x.favorite_id}')">Monitor every 10m</button><button onclick="reportType.value='favorite';reportSubject.value='${x.favorite_id}';makeReport()">Report</button><button onclick="removeFavorite('${x.favorite_id}')">Remove</button></div></article>`}).join('')||'<p class="muted">No favorites yet.</p>';events.innerHTML=(e.events||[]).slice(0,12).map(row).join('')||'No events.';deliveries.innerHTML=(d.deliveries||[]).map(row).join('')||'No deliveries.'}
+async function refreshAll(){let [s,f,e,d,sc]=await Promise.all(['/api/operations/status','/api/operations/favorites','/api/operations/events?limit=50','/api/operations/deliveries?limit=12','/api/operations/schedules'].map(u=>fetch(u).then(r=>r.json())));health.textContent=`Scheduler ${s.scheduler.status} · App ${s.channels.app.status} · Discord ${s.channels.discord.status}`;health.className='badge '+(s.scheduler.status==='HEALTHY'?'ok':'warn');let counts={},intervals={};(sc.schedules||[]).forEach(x=>{counts[x.favorite_id]=(counts[x.favorite_id]||0)+1;intervals[x.favorite_id]=x.interval_minutes});let latest={};(e.events||[]).filter(x=>x.event_type==='analysis.completed').forEach(x=>{if(!latest[x.subject_id])latest[x.subject_id]=x});favorites.innerHTML=(f.favorites||[]).map(x=>{let ev=latest[x.favorite_id],p=ev?.payload||{};let brief=ev?`<div class="notice" style="margin:10px 0"><b>10-minute brief: ${esc(p.entry_decision||'WAIT')}</b> · bias ${esc(p.research_bias||'NO_TRADE')}<br><span class="muted">Reference ${esc(p.reference_price??'Unknown')} · stop ${esc(p.stop??'Unknown')} · TP1 ${esc(p.target_1??'Unknown')} · TP2 ${esc(p.target_2??'Unknown')}<br>Data as of ${esc(p.market_data_asof_raw||'Unknown')} · checked ${new Date(ev.occurred_at*1000).toLocaleString()}<br>${esc(ev.provider||x.provider)} · Risk ${esc(p.risk_decision||'BLOCK')}</span></div>`:'';return `<article class="card"><div class="row" style="justify-content:space-between"><h2>★ ${esc(x.symbol)}</h2><span class="badge ${x.risk_state==='BLOCK'?'warn':'ok'}">${esc(x.state)}</span></div><p>${esc(x.name)} · ${esc(x.asset_class)}</p><p class="muted">${esc(x.provider)} · ${esc(x.execution_timeframe)}<br>Strategy: ${esc(x.strategy_id)} · Squad: ${esc(x.bot_id)}<br>Risk: ${esc(x.risk_state)} · Monitor: ${intervals[x.favorite_id]?`every ${intervals[x.favorite_id]} min`:'off'}</p>${brief}<div class="row"><button onclick="runFavorite('${x.favorite_id}')">Run analysis</button><button onclick="scheduleFavorite('${x.favorite_id}')">Monitor every 10m</button><button onclick="reportType.value='favorite';reportSubject.value='${x.favorite_id}';makeReport()">Report</button><button onclick="removeFavorite('${x.favorite_id}')">Remove</button></div></article>`}).join('')||'<p class="muted">No favorites yet.</p>';events.innerHTML=(e.events||[]).slice(0,12).map(row).join('')||'No events.';deliveries.innerHTML=(d.deliveries||[]).map(row).join('')||'No deliveries.'}
 loadCatalog();refreshAll();setInterval(refreshAll,30000);
 </script></body></html>'''

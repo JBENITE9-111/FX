@@ -24,7 +24,7 @@ Work hands-off where possible:
 - run the app;
 - exercise the UI;
 - call real local APIs;
-- test Telegram/Discord integrations using test messages when credentials are configured;
+- test Discord integrations using test messages when credentials are configured;
 - test scheduling;
 - test report generation;
 - test restart persistence;
@@ -48,7 +48,6 @@ FX should become a **paper-only trading research laboratory** in which the user 
 5. Schedule recurring analyses.
 6. Receive meaningful state changes through:
    - the FX application,
-   - Telegram,
    - Discord.
 7. Store every analysis, signal, veto, notification and paper outcome.
 8. Compare strategies and bots based on evidence rather than presentation.
@@ -110,7 +109,7 @@ Next analysis: 12:05
 Last analysis: 12:00
 Current state: WATCHING
 Risk state: OK
-Alerts: Telegram + App
+Alerts: Discord + App
 ```
 
 Avoid turning the card into a wall of metrics.
@@ -146,8 +145,7 @@ Minimum R:R                 configurable
 
 NOTIFICATIONS
 FX App                      ON
-Telegram                    ON
-Discord                     OFF
+Discord                     ON
 
 NOTIFY WHEN
 BUY confirmed               ON
@@ -527,8 +525,7 @@ The same underlying report data should be reusable in:
 1. Full in-app report
 2. Markdown export
 3. JSON export
-4. Short Telegram summary
-5. Discord embed/message
+4. Short Discord embed/message
 6. Daily digest
 7. Future PDF export if useful
 
@@ -538,66 +535,6 @@ Generate a canonical report object and render it to channels.
 
 ---
 
-# 9. TELEGRAM
-
-Telegram should begin as a personal command/alert channel.
-
-Backend-only credentials:
-
-```text
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-```
-
-Never:
-- hard-code them;
-- commit them;
-- expose them to the frontend;
-- print them to logs.
-
-Initial capabilities:
-
-- Send Test
-- Signal state-change alert
-- Risk veto alert
-- System health warning
-- Morning brief
-- Evening paper review
-
-Later:
-
-- `/status`
-- `/favorites`
-- `/signals`
-- `/report EURUSD`
-- `/report bot:<id>`
-- `/analyze EURUSD`
-- `/council EURUSD`
-
-Do not add remote live-execution commands.
-
-## Example short alert
-
-```text
-🟢 FX PAPER SIGNAL — LONG
-EUR/USD
-
-Entry: 1.1725
-SL: 1.1685
-TP1: 1.1760
-TP2: 1.1800
-R:R: 1:2.4
-TF: 15m
-
-Strategy: Trend Pullback v2
-Council: 4 BUY / 0 SELL / 2 WAIT
-Risk: APPROVED
-Valid until: 11:20
-
-Research + Paper Trading Only
-```
-
----
 
 # 10. DISCORD
 
@@ -636,7 +573,7 @@ SYSTEM HEALTH
 
 ---
 
-# 11. DO NOT BUILD TELEGRAM AND DISCORD AS TWO SEPARATE SYSTEMS
+# 11. USE ONE DISCORD NOTIFICATION ROUTER
 
 Required architecture:
 
@@ -649,7 +586,6 @@ Notification Policy
         ↓
 Notification Router
         ├── FX App
-        ├── Telegram
         └── Discord
 ```
 
@@ -665,7 +601,6 @@ class NotificationChannel:
 
 Then:
 
-- `TelegramChannel`
 - `DiscordChannel`
 - `InAppChannel`
 
@@ -727,7 +662,7 @@ After application restart, schedules must recover.
 
 # 13. EVENT STORE + JOURNAL
 
-Telegram and Discord are delivery mechanisms, not the database.
+Discord is a delivery mechanism, not the database.
 
 Persist every important event before delivery.
 
@@ -807,7 +742,6 @@ MAJOR EVENT RISKS
 SYSTEM
 Market data: healthy
 Scheduler: healthy
-Telegram: healthy
 Discord: healthy
 ```
 
@@ -1291,8 +1225,7 @@ Add real service health:
 Market Data       HEALTHY / STALE / OFFLINE
 Scheduler         HEALTHY / DEGRADED
 Database          HEALTHY
-Telegram          CONNECTED / NOT CONFIGURED / FAILED
-Discord           CONNECTED / NOT CONFIGURED / FAILED
+Discord          CONNECTED / NOT CONFIGURED / FAILED
 Ollama            RESPONDING / OFFLINE
 Kimi              RESPONDING / NOT CONFIGURED
 OpenRouter        RESPONDING / NOT CONFIGURED
@@ -1326,7 +1259,7 @@ Review:
 - browser devtools exposure;
 - structured log redaction.
 
-Discord webhook URLs and Telegram bot tokens are credentials.
+Discord webhook URLs are credentials.
 
 ---
 
@@ -1414,7 +1347,6 @@ services/
   notifications/
     router
     policies
-    telegram
     discord
     in_app
     templates
@@ -1534,7 +1466,6 @@ GET    /api/reports/{report_id}
 GET    /api/reports/{report_id}/markdown
 
 GET    /api/notifications/health
-POST   /api/notifications/telegram/test
 POST   /api/notifications/discord/test
 
 GET    /api/schedules
@@ -1644,15 +1575,6 @@ Codex must test the feature end-to-end.
 - missing-data behavior;
 - Markdown export.
 
-## Telegram
-- not configured state;
-- valid test;
-- invalid token;
-- network error;
-- retry;
-- deduplication;
-- content length handling.
-
 ## Discord
 - not configured;
 - valid webhook;
@@ -1696,7 +1618,6 @@ Add tests appropriate to the codebase for:
 - report schema;
 - scheduler persistence;
 - notification router;
-- Telegram template rendering;
 - Discord template rendering;
 - secrets not serialized;
 - market-data timestamp freshness;
@@ -1723,8 +1644,6 @@ RISK_VETOED
 SIGNAL_STATE_CHANGED
 REPORT_GENERATED
 NOTIFICATION_QUEUED
-TELEGRAM_SENT
-TELEGRAM_FAILED
 DISCORD_SENT
 DISCORD_FAILED
 ANALYSIS_COMPLETED
@@ -1771,7 +1690,7 @@ Implement canonical reports + Markdown export.
 Persistent jobs + run history.
 
 ## Phase G — Notification Router
-In-app + Telegram + Discord.
+In-app + Discord.
 
 ## Phase H — Intelligence integration
 Connect strategy/council/supervisor/risk results.
@@ -1807,8 +1726,7 @@ Final response to user must state:
 2. What was implemented.
 3. Exact files changed.
 4. Database/schema changes.
-5. Telegram status.
-6. Discord status.
+5. Discord status.
 7. Scheduler status.
 8. Report-generator status.
 9. Signal state-machine status.
@@ -1833,7 +1751,7 @@ Do not say only "done."
 6. Every market value has provider + timestamp provenance.
 7. Confidence is not a probability until calibrated.
 8. Alerts are state-driven, deduplicated and low-noise.
-9. Telegram/Discord are delivery channels, not system-of-record.
+9. Discord is a delivery channel, not system-of-record.
 10. Every signal/report can be reconstructed from stored evidence.
 11. Strategy claims must be validated, not believed.
 12. Promotional trading content is hypothesis inspiration only.
@@ -1854,7 +1772,7 @@ Do not say only "done."
 
 The supplied project materials already established two important foundations:
 
-### A. Favorites + Telegram/Discord alert architecture
+### A. Favorites + Discord alert architecture
 They define:
 - Favorites/watchlist;
 - per-asset schedules;
@@ -1862,8 +1780,7 @@ They define:
 - stop loss/take profit;
 - risk veto;
 - signal lifecycle;
-- Telegram personal alerts;
-- Discord research channels;
+- Discord alerts and research channels;
 - persistent signal journal;
 - health monitoring;
 - paper-only execution.
@@ -1904,18 +1821,6 @@ Official documentation reviewed:
 - https://goose-docs.ai/docs/tutorials/subagents/
 
 Use Goose as an architectural reference unless a direct dependency clearly improves the existing FX implementation.
-
-## Telegram
-
-Official Bot API:
-https://core.telegram.org/bots/api
-
-Relevant:
-- HTTP Bot API;
-- `sendMessage`;
-- target `chat_id`;
-- bots act as interfaces to server-side code;
-- inline keyboards / richer interaction are possible.
 
 ## Discord
 
@@ -1981,7 +1886,7 @@ Direct fetching of these share URLs was unavailable in the research environment.
 Do **not** fabricate their contents.
 
 The two uploaded Markdown source files contain substantial prior research on:
-- Favorites/alerts/signals/Telegram/Discord;
+- Favorites/alerts/signals/Discord;
 - multi-brain/OpenRouter/council/supervisor architecture.
 
 Codex should treat this handoff as the consolidated implementation brief. If the user later provides exported text from the Google AI Mode shares, ingest it as an additional source and reconcile it explicitly against this version.
@@ -2019,7 +1924,7 @@ The final system should feel like this:
                                     ↓
                          Notification Policy
                           ↙       ↓       ↘
-                       FX App  Telegram  Discord
+                       FX App  Discord
                                     ↓
                               Paper Outcome
                                     ↓
@@ -2050,7 +1955,7 @@ The user should be able to open FX and answer, in plain English:
 - Is it improving?
 - What plan are we following to improve it?
 - What experiment comes next?
-- Are Telegram/Discord/data/AI/scheduler actually healthy?
+- Are Discord/data/AI/scheduler actually healthy?
 
 If the application cannot answer those questions, the feature is not finished.
 
@@ -2058,4 +1963,4 @@ If the application cannot answer those questions, the feature is not finished.
 
 # 44. ONE-SENTENCE IMPLEMENTATION STATEMENT
 
-> **Turn FX Favorites into an evidence-driven monitoring and reporting command center: persist favorite instruments and per-asset schedules, run standardized strategy/model-council analyses, route every candidate through a deterministic risk governor, store the full event/report lineage, and deliver only meaningful state changes or requested digests through the FX app, Telegram and Discord—while keeping all execution strictly paper-only and making every bot, strategy and goal explainable through an on-demand report.**
+> **Turn FX Favorites into an evidence-driven monitoring and reporting command center: persist favorite instruments and per-asset schedules, run standardized strategy/model-council analyses, route every candidate through a deterministic risk governor, store the full event/report lineage, and deliver only meaningful state changes or requested digests through the FX app, Discord—while keeping all execution strictly paper-only and making every bot, strategy and goal explainable through an on-demand report.**

@@ -127,13 +127,20 @@ Open `http://127.0.0.1:8000/operations` from **Favorites & Operations** in the t
 - The card shows a short `BUY`, `SELL`, or `WAIT` entry decision, the research bias, provider, market-data timestamp, and calculated protection levels.
 - An unqualified strategy remains `WAIT`/`BLOCK` even when its research bias is long or short.
 - Schedules and in-app notifications work only while this Mac and the FX service are running.
-- Telegram and Discord use the same notification router and remain `NOT_CONFIGURED` until their backend-only environment variables are set.
+- Discord uses the notification router and remains `NOT_CONFIGURED` until its backend-only webhook is set.
 
 ```env
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
 DISCORD_WEBHOOK_URL=
 ```
+
+Create a private Discord channel, open **Edit Channel → Integrations → Webhooks**, create a webhook for that channel, and copy its URL. Configure FX without exposing the URL in shell history:
+
+```bash
+cd /Users/macmac/Documents/Codex/FX
+./scripts/configure-discord.sh
+```
+
+The script hides input, writes only to the ignored `.env` file with owner-only permissions, restarts the managed FX service, and sends a paper-only connection test.
 
 The app never sends live orders from the scheduler. Local paper orders still require entry, structural invalidation, stop, profit plan, maximum loss and position size.
 

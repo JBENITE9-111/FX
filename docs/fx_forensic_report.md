@@ -184,7 +184,7 @@ What's working well and should be preserved.
 17. **Build auto-trader controller** — main loop with profit targeting, cooling periods, demotion rules
 18. **Build confluence scorer** — weighted multi-strategy voting with regime filtering
 19. **Build strategy memory** — persistent knowledge base of per-strategy, per-regime performance
-20. **Build Telegram alerting** — trade notifications, daily summary, demotion alerts
+20. **Build Discord alerting** — trade notifications, daily summary, demotion alerts
 21. **Add WebSocket support** — real-time price updates and bot status on the dashboard
 22. **Build auto-trader dashboard** — readiness level, profit progress, trade history, knowledge log
 23. **Wire Alpaca client to BrokerAdapter** — unify all execution through the adapter pattern

@@ -96,6 +96,11 @@ def initialize() -> None:
             CREATE INDEX IF NOT EXISTS idx_deliveries_status ON notification_deliveries(status,next_attempt_at);
             """
         )
+        # Discord is the sole external delivery channel. Keep the local inbox for
+        # auditability and migrate existing favorites/schedules to the same policy.
+        channels = json.dumps(["app", "discord"])
+        conn.execute("UPDATE favorites SET channels_json=?", (channels,))
+        conn.execute("UPDATE schedules SET channels_json=?", (channels,))
 
 
 def _json(value: Any) -> str:

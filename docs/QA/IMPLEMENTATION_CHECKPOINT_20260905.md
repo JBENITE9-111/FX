@@ -20,13 +20,13 @@ Implement the audited paper-only operations path by reusing the current FX archi
 - Model scores are not presented as calibrated probabilities.
 - Scheduler analysis frequency never implies trade frequency.
 - Events are stored before notification delivery.
-- Telegram and Discord remain disabled until backend credentials are configured.
+- Discord remains disabled until backend credentials are configured.
 - No model or agent can bypass deterministic trade protection or promote itself.
 
 ## Pending at checkpoint
 
 - Persistent favorites, events, reports, schedules, deliveries, and goal plans.
-- Unified app/Telegram/Discord notification router.
+- Unified app/Discord notification router.
 - Operations API and command-center UI.
 - Persistent TOTP throttle and database backups.
 - Full compile, import, route, paper, risk, security and browser QA.

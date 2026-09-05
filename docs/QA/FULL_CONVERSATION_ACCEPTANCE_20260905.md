@@ -25,7 +25,7 @@ This audit maps the accumulated requests in the FX conversation and the four sou
 | Standard signal/event contracts | Verified | Versioned Pydantic contracts reject actionable eligibility without protection and deterministic risk approval. Events store provenance, evidence IDs and hashes. |
 | On-demand reports | Verified | Bot, strategy, signal, favorite, goal and system reports persist locally, render as readable sections, and export Markdown. Missing evidence stays explicit. |
 | Persistent scheduler | Verified | SQLite schedules have interval, next/last run, lease, run history, pause/resume/run-now and restart persistence. Runtime status is HEALTHY. |
-| Notification router | Implemented; local verified | The app inbox is connected with deduplication, attempts and backoff. Telegram and Discord adapters are present but truthfully report NOT_CONFIGURED until credentials are supplied. |
+| Notification router | Implemented; local verified | The app inbox is connected with deduplication, attempts and backoff. The Discord adapter is present and truthfully reports NOT_CONFIGURED until its webhook is supplied. |
 | Council/team/supervisor integration | Verified for research | Favorite analysis invokes the existing Model Council, sparse expert selection, trading-team identity, supervisor decision and deterministic risk block. |
 | Journal/evaluation | Verified | Protected paper fills and closes append canonical operation events and remain available in the local journal. |
 | 2FA and app security | Implemented; enrollment required | RFC 6238/TOTP enrollment, QR, recovery codes, throttling and signed sessions are implemented. The sentinel reports ACTION until the owner completes enrollment on `/security`. |
@@ -39,7 +39,7 @@ This audit maps the accumulated requests in the FX conversation and the four sou
 3. On-demand Bot/Strategy/Signal/Goal reports — complete.
 4. Persistent scheduler — complete for the local FX runtime.
 5. Unified notification router — complete; external delivery awaits credentials.
-6. Telegram and Discord — adapters complete; end-to-end external delivery not tested without owner credentials/recipients.
+6. Discord — adapter complete; end-to-end external delivery not tested without owner credentials/recipients.
 7. Model Council, Trading Team and Supervisor integration — complete for favorite research analysis.
 8. Deterministic risk gate — enforced for actionable signals and paper orders.
 9. Journal and evaluation — canonical paper events complete; long-horizon promotion evidence continues to accumulate.
@@ -50,7 +50,7 @@ This audit maps the accumulated requests in the FX conversation and the four sou
 
 - Strategy qualification is evidence-gated. Current models do not pass the required locked holdout, calibration, walk-forward and portfolio-risk conditions. Lowering labels or thresholds merely to display QUALIFIED would corrupt the research record.
 - TOTP protection becomes active only after the owner scans the QR and confirms a current code on `/security`.
-- Telegram and Discord need owner-supplied credentials and destination identifiers. Secrets must remain in `.env`/the local credential mechanism and must not be committed.
+- Discord needs an owner-supplied channel webhook. Secrets must remain in `.env`/the local credential mechanism and must not be committed.
 - Live brokerage execution remains deliberately unavailable. It is a later, separately approved phase after qualification and operational gates pass.
 - GitHub publication requires a valid authenticated GitHub CLI session; the previously stored token for `JBENITE9-111` is invalid.
 
