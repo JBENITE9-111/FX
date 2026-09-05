@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "policy": {
+    "external_default_status": "EXTERNAL_UNTRUSTED",
+    "direct_live_promotion": false,
+    "requires_source_hash": true,
+    "requires_native_reimplementation": true,
+    "requires_validation": true,
+    "requires_holdout": true,
+    "requires_walk_forward": true,
+    "requires_model_killer": true,
+    "requires_paper": true
+  },
+
+  "sources": [
+    {
+      "id": "freqtrade",
+      "name": "Freqtrade Strategies",
+      "type": "STRATEGY_LIBRARY",
+      "location": "vendor/strategy-sources/freqtrade-strategies",
+      "status": "EXTERNAL_UNTRUSTED",
+      "intended_use": [
+        "strategy DNA extraction",
+        "entry rule discovery",
+        "exit rule discovery",
+        "ROI concept extraction",
+        "stop-loss concept extraction",
+        "indicator combinations"
+      ],
+      "broker_authority": false
+    },
+
+    {
+      "id": "geraked_mt5",
+      "name": "geraked MetaTrader 5",
+      "type": "STRATEGY_LIBRARY",
+      "location": "vendor/strategy-sources/metatrader5-strategies",
+      "status": "EXTERNAL_UNTRUSTED",
+      "intended_use": [
+        "forex strategy DNA",
+        "indicator combinations",
+        "EA rule extraction",
+        "COT strategy research",
+        "trend strategy research",
+        "mean-reversion strategy research"
+      ],
+      "special_risk_flags": [
+        "grid",
+        "martingale",
+        "averaging-down"
+      ],
+      "broker_authority": false
+    },
+
+    {
+      "id": "finrl_x",
+      "name": "FinRL-X",
+      "type": "REINFORCEMENT_LEARNING_LAB",
+      "location": "vendor/research/finrl-x",
+      "status": "LAB",
+      "intended_use": [
+        "RL research",
+        "allocation experiments",
+        "execution policy experiments"
+      ],
+      "broker_authority": false
+    },
+
+    {
+      "id": "hummingbot",
+      "name": "Hummingbot",
+      "type": "CRYPTO_EXECUTION_REFERENCE",
+      "location": "vendor/reference/hummingbot",
+      "status": "REFERENCE",
+      "intended_use": [
+        "executor architecture",
+        "position executor",
+        "DCA executor",
+        "TWAP executor",
+        "grid research",
+        "arbitrage research",
+        "market-making research"
+      ],
+      "broker_authority": false
+    },
+
+    {
+      "id": "obsidian_ai",
+      "name": "Obsidian AI",
+      "type": "AGENT_ARCHITECTURE_REFERENCE",
+      "location": "vendor/reference/obsidian-ai",
+      "status": "REFERENCE",
+      "intended_use": [
+        "visual agent workflows",
+        "human approval",
+        "workflow traces",
+        "agent versioning",
+        "multi-agent orchestration",
+        "background execution"
+      ],
+      "broker_authority": false
+    }
+  ]
+}
