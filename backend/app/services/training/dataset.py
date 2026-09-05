@@ -156,10 +156,13 @@ def build_dataset(
             .astype(float)
         )
 
-        df["volume_change"] = (
-            volume
-            .pct_change(5)
-        )
+        # Spot FX and some index feeds truthfully report no exchange volume.
+        # Treat unavailable volume as neutral evidence instead of dividing by
+        # zero and dropping every otherwise valid price observation.
+        prior_volume = volume.shift(5).replace(0, np.nan)
+        df["volume_change"] = (volume / prior_volume - 1).replace(
+            [np.inf, -np.inf], np.nan
+        ).fillna(0.0)
 
     else:
 

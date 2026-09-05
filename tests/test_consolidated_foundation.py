@@ -10,6 +10,7 @@ from services.operations import store as operations_store
 from services.learning.status import learning_overview
 from services.instruments.training_universe import search_training_catalog, universe
 from backend.app.services.bots.runtime import bots
+from backend.app.services.training.dataset import build_dataset
 from backend.app.services.research.grounded_answer import (
     grounded_context_answer,
     identify_symbols,
@@ -144,6 +145,18 @@ class ConsolidatedFoundationTests(unittest.TestCase):
             {item["asset_class"] for item in targets},
         )
         self.assertTrue({"MSFT", "EUR/JPY", "XRP/USD", "ES.F"} <= {item["symbol"] for item in targets})
+
+    def test_zero_volume_forex_history_remains_trainable(self):
+        rows = []
+        for index in range(420):
+            close = 1.10 + index * 0.00001 + ((index % 11) - 5) * 0.00002
+            rows.append({
+                "open": close - 0.00003, "high": close + 0.00012,
+                "low": close - 0.00010, "close": close, "volume": 0.0,
+            })
+        dataset = build_dataset(rows, horizon=5)
+        self.assertGreater(len(dataset), 300)
+        self.assertTrue((dataset["volume_change"] == 0.0).all())
 
     def test_chat_resolves_named_market_and_answers_system_questions_locally(self):
         self.assertEqual(identify_symbols("What is the gold price? ")[0], "XAU/USD")

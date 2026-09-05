@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -81,7 +80,7 @@ def discord_test():
     event = record_event(
         event_type="notification.test", source="operations", subject_type="system",
         subject_id="discord", state="TEST", payload={"paper_only": True},
-        dedup_key=f"discord-test:{int(time.time())}",
+        dedup_key="discord-connection-test",
     )
     queued = route_event(
         event, channels=["discord"],

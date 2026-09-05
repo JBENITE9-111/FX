@@ -72,6 +72,8 @@ select {
 
 .app {
     height: 100vh;
+    min-height: 0;
+    overflow: hidden;
 
     display: grid;
 
@@ -89,7 +91,8 @@ select {
     padding:
         14px 10px;
 
-    overflow: hidden;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .logo {
@@ -204,6 +207,7 @@ select {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 0;
 }
 
 .market-head {
@@ -254,7 +258,8 @@ select {
 
 .market-results {
     flex: 1;
-    overflow: hidden;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .market-row {
@@ -294,6 +299,8 @@ select {
 
 .center {
     min-width: 0;
+    min-height: 0;
+    overflow: hidden;
 
     display:
         flex;
@@ -515,6 +522,9 @@ select {
         column;
 
     min-width: 0;
+    min-height: 0;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .chat-head {
@@ -535,6 +545,8 @@ select {
 
     justify-content:
         space-between;
+
+    flex: 0 0 52px;
 }
 
 .ai-status {
@@ -548,6 +560,8 @@ select {
 .messages {
     flex:
         1;
+
+    min-height: 0;
 
     overflow-y:
         auto;
@@ -600,6 +614,8 @@ select {
 
     padding:
         10px;
+
+    flex: 0 0 auto;
 }
 
 .chat-input {
