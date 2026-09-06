@@ -50,20 +50,17 @@ app.include_router(learning_web_router)
 @app.on_event("startup")
 async def start_local_research_at_login():
     from services.monitoring.sentinel import sentinel
-    from services.operations.scheduler import scheduler
     from services.agents.operations_team import operations_team
+    from services.auth.runtime_gate import automation_runtime_gate
+    from services.auth.startup_prompt import schedule_totp_prompt
     from services.local_paper.broker import protect_legacy_positions
     protect_legacy_positions()
     sentinel.start()
-    scheduler.start()
-    if os.getenv("FX_AUTO_LEARN_ON_STARTUP", "true").lower() in {"1", "true", "yes"}:
-        from services.learning.continuous import continuous_learning
-        continuous_learning.start("APP_STARTUP")
-    if os.getenv("FX_AUTO_START_BOTS", "false").lower() in {"1", "true", "yes"}:
-        from backend.app.services.bots.runtime import bots
-        for item in bots.list():
-            bots.start(item["id"])
     operations_team.start()
+    if not automation_runtime_gate.required():
+        await automation_runtime_gate.unlock("APP_STARTUP_POLICY")
+    else:
+        schedule_totp_prompt()
 
 
 @app.on_event("shutdown")
@@ -92,6 +89,7 @@ async def health():
     from services.agents.operations_team import operations_team
     from services.learning.continuous import continuous_learning
     from backend.app.services.bots.runtime import bots
+    from services.auth.runtime_gate import automation_runtime_gate
     team = operations_team.status()
     bot_rows = bots.list()
     learning = continuous_learning.status()
@@ -103,6 +101,7 @@ async def health():
         "paper_trading": True,
         "llm": "multi-brain peer committee",
         "llm_authority": "research and explanation only",
+        "automation_gate": automation_runtime_gate.status(),
         "agent_team": {
             "status": team["status"],
             "running": team["running"],

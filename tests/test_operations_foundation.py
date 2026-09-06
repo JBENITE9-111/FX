@@ -12,6 +12,7 @@ from services.operations import store
 from services.operations.notifications import _post, channel_health, route_event
 from services.operations.reports import generate_report, render_markdown
 from services.agents.operations_team import AutomatedAgentTeam
+from services.auth.runtime_gate import AutomationRuntimeGate
 
 
 class OperationsFoundationTests(unittest.TestCase):
@@ -127,6 +128,27 @@ class OperationsFoundationTests(unittest.TestCase):
             self.assertEqual(team._evaluate("compliance", snapshot)["status"], "BLOCK")
         refiner = team._evaluate("prompt_strategy_refiner", snapshot)
         self.assertEqual(refiner["automatic_changes"], [])
+
+
+class AutomationRuntimeGateTests(unittest.IsolatedAsyncioTestCase):
+    async def test_totp_gate_starts_existing_automation_once(self):
+        gate = AutomationRuntimeGate()
+        with patch.dict("os.environ", {
+            "FX_REQUIRE_TOTP_FOR_AUTOMATION": "true",
+            "FX_AUTO_LEARN_ON_STARTUP": "true",
+            "FX_AUTO_START_BOTS": "true",
+        }), patch("services.operations.scheduler.scheduler.start") as scheduler_start, \
+             patch("services.learning.continuous.continuous_learning.start") as learning_start, \
+             patch("backend.app.services.bots.runtime.bots.list", return_value=[{"id": "scanner"}]), \
+             patch("backend.app.services.bots.runtime.bots.start") as bot_start:
+            self.assertFalse(gate.status()["unlocked"])
+            first = await gate.unlock("TOTP_LOGIN")
+            second = await gate.unlock("TOTP_LOGIN")
+        self.assertTrue(first["unlocked"])
+        self.assertEqual(second["state"], "UNLOCKED")
+        scheduler_start.assert_called_once()
+        learning_start.assert_called_once_with("TOTP_LOGIN")
+        bot_start.assert_called_once_with("scanner")
 
 
 if __name__ == "__main__":
