@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import httpx
 from fastapi import APIRouter
@@ -20,6 +21,8 @@ async def system_status():
     ai_working = False
     alpaca_working = False
     lse_working = False
+    headroom_working = False
+    freellm_working = False
 
     try:
 
@@ -38,6 +41,41 @@ async def system_status():
 
     except Exception:
         pass
+
+    headroom_enabled = os.getenv("HEADROOM_ENABLED", "false").lower() == "true"
+    if headroom_enabled:
+        try:
+            base = os.getenv("HEADROOM_BASE_URL", "http://127.0.0.1:8787").rstrip("/")
+            async with httpx.AsyncClient(timeout=2) as client:
+                response = await client.get(f"{base}/livez")
+                headroom_working = response.status_code == 200
+        except Exception:
+            pass
+
+    freellm_enabled = os.getenv("FREELLMAPI_ENABLED", "false").lower() == "true"
+    if freellm_enabled:
+        try:
+            base = os.getenv("FREELLMAPI_BASE_URL", "http://127.0.0.1:3001/v1").rstrip("/")
+            headers = {}
+            if os.getenv("FREELLMAPI_API_KEY", "").strip():
+                headers["Authorization"] = "Bearer " + os.getenv("FREELLMAPI_API_KEY", "").strip()
+            async with httpx.AsyncClient(timeout=2, headers=headers) as client:
+                response = await client.get(f"{base}/models")
+                freellm_working = response.status_code == 200
+        except Exception:
+            pass
+
+    goose_path = os.getenv("GOOSE_PATH", "").strip() or shutil.which("goose")
+    goose_enabled = os.getenv("GOOSE_CHAT_ENABLED", "false").lower() == "true"
+    openrouter_working = bool(
+        os.getenv("OPENROUTER_ENABLED", "false").lower() == "true"
+        and os.getenv("OPENROUTER_API_KEY", "").strip()
+    )
+    extra_models = [
+        model.strip()
+        for model in os.getenv("OPENROUTER_COUNCIL_MODELS", "").split(",")
+        if model.strip()
+    ][:3]
 
     try:
 
@@ -68,12 +106,14 @@ async def system_status():
         pass
 
     return {
-        "ai": ai_working,
+        "ai": ai_working or openrouter_working or freellm_working,
         "ollama": ai_working,
-        "kimi": bool(
-            os.getenv("OPENROUTER_ENABLED", "false").lower() == "true"
-            and os.getenv("OPENROUTER_API_KEY", "").strip()
-        ),
+        "kimi": openrouter_working,
+        "openrouter": openrouter_working,
+        "openrouter_council_models": extra_models,
+        "freellmapi": {"enabled": freellm_enabled, "responding": freellm_working},
+        "goose": {"enabled": goose_enabled, "installed": bool(goose_path)},
+        "headroom": {"enabled": headroom_enabled, "responding": headroom_working},
         "alpaca": alpaca_working,
         "lse": lse_working,
         "hugging_face": bool(

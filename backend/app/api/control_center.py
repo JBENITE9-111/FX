@@ -31,7 +31,7 @@ from backend.app.services.research.grounded_answer import (
     operational_answer,
     local_system_context,
 )
-from services.chat.memory import remember, recent
+from services.chat.memory import remember, recent, recall
 
 from backend.app.services.training.trainer import (
     load_registry,
@@ -117,7 +117,34 @@ async def chat(
                 "answer": operational,
             })
 
-        context = {"local_fx": local_system_context(), "recent_personal_chat": recent(request.conversation_id, 16)}
+        context = {
+            "local_fx": local_system_context(),
+            "recent_personal_chat": recent(request.conversation_id, 16),
+            "recalled_personal_memory": recall(request.message, request.conversation_id, 12),
+        }
+
+        if "yahoo" in request.message.lower() or "spacex" in request.message.lower():
+            try:
+                from services.market_intelligence.yahoo_finance import lookup, render_lookup
+                yahoo = await __import__("asyncio").to_thread(lookup, "SpaceX" if "spacex" in request.message.lower() else request.message)
+                context["yahoo_finance"] = yahoo
+                if any(term in request.message.lower() for term in ("price", "quote", "how much")):
+                    return finish({
+                        "provider": "FX deterministic market lookup",
+                        "model": "Yahoo Finance",
+                        "answer": render_lookup(yahoo),
+                    })
+            except Exception:
+                context["yahoo_finance"] = {"status": "UNAVAILABLE", "message": "Yahoo Finance did not return verifiable data."}
+
+        try:
+            from services.news.newspaper import load as load_newspaper
+            terms = {term for term in request.message.lower().split() if len(term) >= 4}
+            items = load_newspaper().get("items") or []
+            relevant = [item for item in items if any(term in str(item.get("title") or "").lower() for term in terms)]
+            context["source_labelled_headlines"] = [{k: item.get(k) for k in ("title", "source", "published_at", "url")} for item in relevant[:8]]
+        except Exception:
+            context["source_labelled_headlines"] = []
 
         mentioned_symbols = identify_symbols(request.message)
         resolved_symbol = mentioned_symbols[0] if mentioned_symbols else request.symbol

@@ -9,6 +9,7 @@ from services.local_paper import broker
 from services.operations import store as operations_store
 from services.learning.status import learning_overview
 from services.instruments.training_universe import search_training_catalog, universe
+from backend.app.routes.fx_local_paper import strategy_suggestion
 from backend.app.services.bots.runtime import bots
 from backend.app.services.training.dataset import build_dataset
 from backend.app.services.research.grounded_answer import (
@@ -129,12 +130,50 @@ class ConsolidatedFoundationTests(unittest.TestCase):
         self.assertIn("4429.19", answer)
         self.assertIn("London Strategic Edge", answer)
 
+    def test_chat_signal_request_returns_wait_without_approved_strategy(self):
+        with patch("services.learning.status.learning_overview", return_value={"records": []}):
+            answer = grounded_context_answer(
+                "Can you provide a signal entry?",
+                {"symbol": "EUR/USD", "model_council": {"overall": "MIXED", "agreement": {"POSITIVE": 2, "NEGATIVE": 2, "NEUTRAL": 1}}},
+                [{"close": 1.1}],
+            )
+        self.assertIn("EUR/USD: WAIT", answer)
+        self.assertIn("No strategy is approved", answer)
+
     def test_global_training_catalog_is_not_limited_to_seed_instruments(self):
         stocks = search_training_catalog(asset_class="Stocks", query="Microsoft")
         forex = search_training_catalog(asset_class="Forex", limit=500)
         self.assertTrue(any(row["symbol"] == "MSFT" for row in stocks["instruments"]))
         self.assertGreater(stocks["catalog_total"], 4_000)
         self.assertGreaterEqual(forex["matched"], 50)
+
+    def test_focused_catalog_matches_the_owner_research_universe(self):
+        forex = search_training_catalog(asset_class="Forex", focused=True, limit=1000)
+        crypto = search_training_catalog(asset_class="Crypto", focused=True, limit=1000)
+        stocks = search_training_catalog(asset_class="Stocks", focused=True, limit=1000)
+        self.assertEqual(
+            {"EUR/USD", "USD/JPY", "GBP/USD", "AUD/USD", "USD/CAD", "USD/CHF", "NZD/USD", "EUR/JPY", "GBP/JPY", "EUR/GBP"},
+            {item["symbol"] for item in forex["instruments"]},
+        )
+        self.assertEqual(9, len(crypto["instruments"]))
+        self.assertTrue({"AAPL", "MSFT", "NVDA", "JPM", "NKE", "ORCL"} <= {item["symbol"] for item in stocks["instruments"]})
+        self.assertGreaterEqual(len(stocks["instruments"]), 170)
+        self.assertLess(len(stocks["instruments"]), 250)
+
+    def test_strategy_suggestion_never_invents_approval(self):
+        overview = {"records": [{
+            "instrument": "EUR/USD", "is_current": True, "eligible": False,
+            "model": "xgboost", "stage": "EXAMINATION", "blocked_at": "CALIBRATION_AND_STRESS",
+            "unseen_auc": .56, "unseen_balanced_accuracy": .54,
+            "walk_forward_auc": .55, "walk_forward_balanced_accuracy": .53,
+            "explanation": "More gates remain.",
+        }]}
+        with patch("backend.app.routes.fx_local_paper.learning_overview", return_value=overview):
+            result = strategy_suggestion("EUR/USD", "Forex")
+        self.assertEqual("NO_APPROVED_STRATEGY", result["status"])
+        self.assertEqual("WAIT", result["paper_action"])
+        self.assertIsNone(result["approved_strategy"])
+        self.assertEqual("macd_trend", result["research_setup"]["strategy_id"])
 
     def test_continuous_learning_uses_a_bounded_global_multi_asset_universe(self):
         targets = universe()

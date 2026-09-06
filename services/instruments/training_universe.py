@@ -32,6 +32,54 @@ GLOBAL_CORE_SYMBOLS = (
     "ES.F", "NQ.F", "GC.F", "SI.F",
 )
 
+# Curated from the owner's research brief. This keeps day-to-day selectors useful
+# without hiding the full catalog from explicit research workflows.
+FOCUSED_SYMBOLS_BY_CLASS = {
+    "Stocks": (
+        # Image list and global companies that exist in the verified LSE catalog.
+        "0700.HK", "1398.HK", "SAP", "005930.KS", "BABA", "0939.HK", "ASML",
+        "0941.HK", "3988.HK", "AZN", "NVS", "LIN", "HSBC", "RELIANCE.NS", "SHEL",
+        "0857.HK", "NVO", "CBA.AX", "RY", "1810.HK", "PDD", "ACN", "UL", "ETN",
+        "2318.HK", "BHARTIARTL.NS", "BHP", "PG", "V", "JNJ", "GOOGL", "GOOG", "AAPL",
+        "UAA", "UA", "BKNG", "ABNB", "MSFT", "WWW", "COST", "MA", "SBUX", "MCD",
+        "ADP", "JPM", "HD", "CNI", "WM", "ALLY", "CAT", "PEP", "ITW", "KO",
+        # Berkshire and disclosed U.S. portfolio names.
+        "AXP", "BAC", "COF", "CVX", "DHI", "DVA", "DAL", "JEF", "KHC", "KR", "LEN",
+        "LEN.B", "LLYVA", "LLYVK", "LPX", "M", "MCO", "NVR", "NYT", "NUE", "OXY",
+        "SIRI", "VRSN", "CB", "DJT", "OBDC", "OWL", "BX", "NVDA", "AVGO", "ORCL",
+        "DELL", "AMZN", "PLTR", "ABT", "ABBV", "MO", "AVB", "BDX", "BLK", "BF.B",
+        "CSCO", "CFG", "CMCSA", "STZ", "IBM", "KVUE", "KMI", "LMT", "MRK", "MS",
+        "NEE", "NKE", "OMC", "PH", "PFE", "PM", "PPG", "PSA", "ROK", "RTX", "TXN",
+        "TMO", "TFC", "VZ", "WMT", "WSO", "WEC", "ZTS", "APO", "ANET", "T", "ADSK",
+        "AZO", "AXON", "BJ", "XYZ", "BA", "BAH", "BMY", "NFLX", "NEM", "NSC", "NOC",
+        "NRG", "ORLY", "OKTA", "OKE", "OTIS", "OVV",
+        # Additional liquid global research names from the owner's brief.
+        "RACE", "SPOT", "SHOP", "MELI", "SE", "3690.HK", "BIDU", "LI", "8035.T",
+        "6857.T", "6861.T", "6098.T", "9983.T", "7974.T", "RIO", "TTE", "E", "EQNR",
+        "NGG", "SAN", "BBVA", "SNY", "CP", "BN", "CNQ", "CCJ", "B",
+        # Explicit owner requests retained alongside the research brief.
+        "TSLA", "XOM", "META",
+    ),
+    "ETFs": ("SPY", "QQQ", "IWM", "GLD", "EEM", "VOO", "DIA", "XLE", "XLF", "TLT"),
+    "Indices": (
+        "SPX500/USD", "NAS100/USD", "US30/USD", "DE30/EUR", "UK100/GBP",
+        "EU50/EUR", "JP225/USD", "HK33/HKD", "AU200/AUD",
+    ),
+    "Forex": (
+        "EUR/USD", "USD/JPY", "GBP/USD", "AUD/USD", "USD/CAD",
+        "USD/CHF", "NZD/USD", "EUR/JPY", "GBP/JPY", "EUR/GBP",
+    ),
+    "Commodities": (
+        "XAU/USD", "XAG/USD", "WTICO/USD", "BCO/USD", "NATGAS/USD",
+        "XCU/USD", "XPT/USD", "SOYBN/USD", "CORN/USD", "COFFEE/USD",
+    ),
+    "Crypto": (
+        "BTC/USD", "ETH/USD", "BNB/USD", "XRP/USD", "SOL/USD",
+        "TRX/USD", "LINK/USD", "DOGE/USD", "ADA/USD",
+    ),
+    "Futures": ("ES.F", "NQ.F", "GC.F", "SI.F", "FDAX.F", "FESX.F"),
+}
+
 
 def universe() -> list[dict]:
     """Return a bounded global research universe plus every enabled Favorite.
@@ -129,10 +177,15 @@ def global_training_catalog() -> tuple[dict, ...]:
 
 
 def search_training_catalog(*, asset_class: str | None = None, market: str | None = None,
-                            query: str = "", limit: int = 500) -> dict:
+                            query: str = "", limit: int = 500, focused: bool = False) -> dict:
+    focused_symbols = {
+        symbol for group, symbols in FOCUSED_SYMBOLS_BY_CLASS.items()
+        if not asset_class or group == asset_class for symbol in symbols
+    }
     matching_class = [
         dict(item) for item in global_training_catalog()
         if not asset_class or item["asset_class"] == asset_class
+        if not focused or item["symbol"] in focused_symbols
     ]
     markets = sorted({item["market"] for item in matching_class})
     query_lower = query.strip().lower()
@@ -146,6 +199,7 @@ def search_training_catalog(*, asset_class: str | None = None, market: str | Non
         "markets": markets,
         "matched": len(filtered),
         "catalog_total": len(global_training_catalog()),
+        "focused": focused,
     }
 
 

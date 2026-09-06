@@ -340,7 +340,7 @@ td {
     line-height:1.5;
 }
 
-.catalog-list { min-height:150px; }
+.catalog-list { min-height:0; }
 .picker-row { display:grid;grid-template-columns:1fr auto;gap:7px;align-items:end; }
 .picker-row button { background:#252930;color:var(--text);border:1px solid var(--line);padding:10px; }
 .suggestions { display:grid;gap:8px;margin-bottom:18px; }
@@ -493,13 +493,13 @@ Future
 
 </select>
 
-<label>Browse the global market list</label>
+<label>Choose from your focused market universe</label>
 <div class="picker-row">
 <input id="paperSearch" placeholder="Search name or symbol" oninput="schedulePaperSearch()">
 <button type="button" onclick="loadMarketList(false)">Search</button>
 </div>
-<select id="marketInstrument" class="catalog-list" size="7" onchange="selectPaperInstrument()" aria-label="Global instruments"></select>
-<div id="catalogMessage" class="note">Loading the local market catalog…</div>
+<select id="marketInstrument" class="catalog-list" onchange="selectPaperInstrument()" aria-label="Global instruments"></select>
+<div id="catalogMessage" class="note">Loading your focused market universe…</div>
 
 
 <label>
@@ -698,10 +698,10 @@ function schedulePaperSearch(){
 async function loadMarketList(preserveInstrument = false){
     const assetClass = document.getElementById("assetClass").value;
     const query = document.getElementById("paperSearch").value.trim();
-    const params = new URLSearchParams({asset_class:assetClass,limit:"100"});
+    const params = new URLSearchParams({asset_class:assetClass,limit:"100",focused:"true"});
     if(query) params.set("q",query);
     const status = document.getElementById("catalogMessage");
-    status.textContent = "Searching the local global catalog…";
+    status.textContent = "Searching your focused market universe…";
     try{
         const payload = await fetch("/api/learning/catalog?" + params.toString()).then(response => response.json());
         paperCatalog = payload.instruments || [];
@@ -717,7 +717,7 @@ async function loadMarketList(preserveInstrument = false){
         }
         const matched = Number(payload.matched || 0);
         status.textContent = matched.toLocaleString() + " matching " + assetClass.toLowerCase()
-            + (matched > paperCatalog.length ? " · showing first " + paperCatalog.length : "") + ". Search covers the full local catalog.";
+            + (matched > paperCatalog.length ? " · showing first " + paperCatalog.length : "") + " in your focused research universe.";
         if(existing || preserveInstrument) await loadBotSuggestions();
     } catch {
         status.textContent = "FX could not load the local market list.";
@@ -756,13 +756,41 @@ async function loadBotSuggestions(){
     box.replaceChildren();
     const loading = document.createElement("div");loading.className="note";loading.textContent="Checking local scanner evidence for " + symbol + "…";box.append(loading);
     try{
-        const payload = await fetch("/api/control/bots").then(response => response.json());
+        const encoded=symbol.split("/").map(encodeURIComponent).join("/");
+        const assetClass=document.getElementById("assetClass").value;
+        const [payload,approval] = await Promise.all([
+            fetch("/api/control/bots").then(response => response.json()),
+            fetch("/api/local-paper/strategy-suggestion/"+encoded+"?asset_class="+encodeURIComponent(assetClass)).then(response => response.json())
+        ]);
         const matching = (payload.bots || [])
             .filter(bot => (bot.watchlist || []).some(item => String(item).toUpperCase() === symbol))
             .map(bot => ({bot,result:(bot.last_results||[]).find(item => String(item.symbol).toUpperCase()===symbol)}));
         box.replaceChildren();
+        const approvalCard=document.createElement("article");approvalCard.className="suggestion";
+        const approvalTitle=document.createElement("strong");
+        approvalTitle.textContent=approval.approved_strategy ? "Approved strategy available" : "Approved strategy: none yet";
+        approvalCard.append(approvalTitle,
+            suggestionLine(approval.message || "Qualification evidence is unavailable."),
+            suggestionLine("Executable paper decision: " + String(approval.paper_action || "WAIT").replaceAll("_"," ")));
+        const evidence=approval.best_model_evidence;
+        if(evidence){
+            approvalCard.append(suggestionLine("Best current brain: "+String(evidence.model||"model").replaceAll("_"," ")+" · "+String(evidence.stage||"UNKNOWN").replaceAll("_"," ")+" · next gate "+String(evidence.blocked_at||"UNKNOWN").replaceAll("_"," ")));
+        } else {
+            approvalCard.append(suggestionLine("No completed model evidence has been recorded for "+symbol+" yet."));
+        }
+        if(approval.research_setup){
+            approvalCard.append(suggestionLine("Suggested research setup: "+approval.research_setup.name+" · RESEARCH ONLY"));
+            const research=document.createElement("button");research.type="button";research.textContent="Use research setup";
+            research.onclick=()=>{
+                document.getElementById("strategy").value=approval.research_setup.strategy_id;
+                document.getElementById("botId").value="manual-paper";
+                document.getElementById("message").textContent=approval.research_setup.name+" selected as a research hypothesis. It is not approved; any paper order still requires a reviewed stop, profit plan, and maximum loss.";
+            };
+            approvalCard.append(research);
+        }
+        box.append(approvalCard);
         if(!matching.length){
-            const empty=document.createElement("div");empty.className="note";empty.textContent="No scanner currently watches " + symbol + ". You can still run a protected manual paper experiment; no bot recommendation is available.";box.append(empty);return;
+            const empty=document.createElement("div");empty.className="note";empty.textContent="No scanner currently watches " + symbol + ". The research setup above remains an unapproved hypothesis.";box.append(empty);return;
         }
         matching.forEach(({bot,result}) => {
             const card=document.createElement("article");card.className="suggestion";

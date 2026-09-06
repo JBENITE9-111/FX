@@ -51,6 +51,7 @@ app.include_router(learning_web_router)
 async def start_local_research_at_login():
     from services.monitoring.sentinel import sentinel
     from services.operations.scheduler import scheduler
+    from services.agents.operations_team import operations_team
     from services.local_paper.broker import protect_legacy_positions
     protect_legacy_positions()
     sentinel.start()
@@ -62,14 +63,17 @@ async def start_local_research_at_login():
         from backend.app.services.bots.runtime import bots
         for item in bots.list():
             bots.start(item["id"])
+    operations_team.start()
 
 
 @app.on_event("shutdown")
 async def stop_local_sentinel():
     from services.monitoring.sentinel import sentinel
     from services.operations.scheduler import scheduler
+    from services.agents.operations_team import operations_team
     sentinel.stop()
     scheduler.stop()
+    operations_team.stop()
 
 
 @app.get("/")
@@ -85,13 +89,30 @@ async def root():
 @app.get("/health")
 async def health():
     from services.monitoring.sentinel import sentinel
+    from services.agents.operations_team import operations_team
+    from backend.app.services.bots.runtime import bots
+    team = operations_team.status()
+    bot_rows = bots.list()
     return {
         "status": "ok",
         "project": "FX",
         "version": "0.1.0",
         "live_trading": False,
         "paper_trading": True,
-        "llm": "ollama",
+        "llm": "multi-brain peer committee",
+        "llm_authority": "research and explanation only",
+        "agent_team": {
+            "status": team["status"],
+            "running": team["running"],
+            "agents": len(team["agents"]),
+            "kill_switch": team["kill_switch"],
+            "last_run_at": team["last_run_at"],
+        },
+        "bots": {
+            "running": sum(str(item.get("status")) == "RUNNING" for item in bot_rows),
+            "total": len(bot_rows),
+            "paper_only": True,
+        },
         "sentinel": sentinel.status(),
     }
 

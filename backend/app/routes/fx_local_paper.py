@@ -22,6 +22,18 @@ from services.local_paper.broker import (
     submit_market_order,
 )
 from backend.app.services.market_data.lse_global import LSEGlobalMarketData
+from services.learning.status import learning_overview
+
+
+RESEARCH_SETUP_BY_ASSET = {
+    "Stocks": ("trend_following", "Trend Following"),
+    "ETFs": ("regime_trend", "Regime-Aware Trend"),
+    "Indices": ("regime_trend", "Regime-Aware Trend"),
+    "Forex": ("macd_trend", "MACD Trend"),
+    "Commodities": ("kalman_trend", "Kalman Trend"),
+    "Crypto": ("momentum", "Momentum"),
+    "Futures": ("breakout", "20-Period Breakout"),
+}
 
 
 router = APIRouter(
@@ -104,6 +116,66 @@ def paper_positions():
     return {
         "positions":
             positions()
+    }
+
+
+@router.get("/strategy-suggestion/{instrument:path}")
+def strategy_suggestion(instrument: str, asset_class: str = "Stocks"):
+    """Describe real qualification evidence for one instrument.
+
+    The fallback setup is a research template, never an approval. This keeps the
+    order form useful while preserving the promotion pipeline's actual state.
+    """
+    symbol = instrument.strip().upper()
+    records = [
+        item for item in learning_overview()["records"]
+        if item.get("is_current") and str(item.get("instrument") or "").upper() == symbol
+    ]
+    approved = [item for item in records if item.get("eligible")]
+
+    def evidence_score(item: dict) -> tuple[int, float]:
+        values = [
+            item.get("unseen_auc"), item.get("unseen_balanced_accuracy"),
+            item.get("walk_forward_auc"), item.get("walk_forward_balanced_accuracy"),
+        ]
+        minimum = min((float(value) for value in values if value is not None), default=0.0)
+        return (1 if item.get("stage") == "EXAMINATION" else 0, minimum)
+
+    best = max(records, key=evidence_score) if records else None
+    strategy_id, strategy_name = RESEARCH_SETUP_BY_ASSET.get(
+        asset_class, RESEARCH_SETUP_BY_ASSET["Stocks"]
+    )
+    approved_record = max(approved, key=evidence_score) if approved else None
+    return {
+        "ok": True,
+        "instrument": symbol,
+        "asset_class": asset_class,
+        "status": "APPROVED" if approved_record else "NO_APPROVED_STRATEGY",
+        "paper_action": "READY_FOR_PROTECTED_PAPER" if approved_record else "WAIT",
+        "approved_strategy": ({
+            "strategy_id": approved_record.get("strategy_id") or strategy_id,
+            "model": approved_record.get("model"),
+            "stage": approved_record.get("stage"),
+        } if approved_record else None),
+        "research_setup": {
+            "strategy_id": strategy_id,
+            "name": strategy_name,
+            "status": "RESEARCH_ONLY",
+            "reason": f"A suitable starting hypothesis for {asset_class.lower()} research; it has not been approved for {symbol}.",
+        },
+        "best_model_evidence": ({
+            "model": best.get("model"),
+            "stage": best.get("stage"),
+            "blocked_at": best.get("blocked_at"),
+            "unseen_auc": best.get("unseen_auc"),
+            "walk_forward_auc": best.get("walk_forward_auc"),
+            "explanation": best.get("explanation"),
+        } if best else None),
+        "message": (
+            "A strategy version has passed the recorded promotion gates. Review its protected paper proposal."
+            if approved_record else
+            "No strategy is approved for this instrument yet. FX will keep WAIT as the executable decision while research continues."
+        ),
     }
 
 

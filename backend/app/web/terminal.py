@@ -369,6 +369,16 @@ select {
         tabular-nums;
 }
 
+.instrument-guidance {
+    margin-top:7px;
+    color:#c1c5cb;
+    font-size:10px;
+    line-height:1.4;
+}
+
+.instrument-guidance.wait { color:#e4c46b; }
+.instrument-guidance.ready { color:#65d18b; }
+
 .toolbar {
     display:
         flex;
@@ -418,11 +428,26 @@ select {
 .chart-wrap {
     flex: 1;
 
+    position: relative;
+
     min-height:
         280px;
 
     padding:
         0 12px;
+}
+
+.chart-status {
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#aeb3ba;
+    font-size:11px;
+    text-align:center;
+    padding:24px;
+    pointer-events:none;
 }
 
 #chart {
@@ -1050,6 +1075,8 @@ class="price"
 —
 </div>
 
+<div id="selectedSuggestion" class="instrument-guidance wait">Checking real qualification evidence…</div>
+
 </div>
 
 <div class="toolbar">
@@ -1154,6 +1181,7 @@ Clear
 <div class="chart-wrap">
 
 <div id="chart"></div>
+<div id="chartStatus" class="chart-status">Loading verified market data…</div>
 
 </div>
 
@@ -1509,6 +1537,42 @@ let conversation =
     );
 
 
+function requireUnlock(response){
+    if(response.status !== 401) return false;
+    const next=window.location.pathname+window.location.search;
+    window.location.href="/security?next="+encodeURIComponent(next);
+    return true;
+}
+
+
+function terminalAssetClass(){
+    const value=String(currentCategory||"").toLowerCase();
+    return ({stock:"Stocks",stocks:"Stocks",etf:"ETFs",etfs:"ETFs",index:"Indices",indices:"Indices",forex:"Forex",fx:"Forex",commodity:"Commodities",commodities:"Commodities",crypto:"Crypto",future:"Futures",futures:"Futures"})[value] || "Stocks";
+}
+
+
+async function loadStrategyGuidance(){
+    const node=document.getElementById("selectedSuggestion");
+    node.className="instrument-guidance wait";
+    node.textContent="Checking real qualification evidence…";
+    const encoded=currentSymbol.split("/").map(encodeURIComponent).join("/");
+    try{
+        const response=await fetch("/api/local-paper/strategy-suggestion/"+encoded+"?asset_class="+encodeURIComponent(terminalAssetClass()));
+        if(requireUnlock(response)) return;
+        const data=await response.json();
+        if(data.approved_strategy){
+            node.className="instrument-guidance ready";
+            node.textContent="APPROVED · "+String(data.approved_strategy.strategy_id||"strategy").replaceAll("_"," ")+" · protected paper review available";
+        } else {
+            const setup=data.research_setup ? data.research_setup.name : "research setup";
+            node.textContent="WAIT · no approved strategy · suggested research: "+setup;
+        }
+    }catch{
+        node.textContent="Qualification evidence unavailable. FX will remain WAIT.";
+    }
+}
+
+
 function saveChat(){
 
     localStorage.setItem(
@@ -1537,7 +1601,7 @@ function renderConversation(){
 
     box.innerHTML = "";
 
-    conversation.forEach(
+    conversation.slice(-40).forEach(
         item => {
 
             const div =
@@ -1645,6 +1709,7 @@ async function sendChat(){
                     })
             }
         );
+        if(requireUnlock(response)) return;
         data = await response.json();
     } catch {
         const pending = conversation.find(item => item.id === pendingId);
@@ -1688,7 +1753,9 @@ async function sendChat(){
 
 async function loadPersonalChatMemory(){
     try{
-        const payload=await fetch("/api/control/chat/history?conversation_id="+encodeURIComponent(personalConversationId)).then(response=>response.json());
+        const response=await fetch("/api/control/chat/history?conversation_id="+encodeURIComponent(personalConversationId));
+        if(requireUnlock(response)) return;
+        const payload=await response.json();
         const stored=(payload.messages||[]).map(item=>({role:item.role==="assistant"?"fx":"user",text:item.content,status:"complete",symbol:item.symbol}));
         if(stored.length){conversation=stored;saveChat();renderConversation();}
     }catch{}
@@ -1862,6 +1929,11 @@ function createChart(){
             "chart"
         );
 
+    if(typeof LightweightCharts === "undefined"){
+        document.getElementById("chartStatus").textContent="The chart library did not load. Market data and chat remain available.";
+        return;
+    }
+
     chart =
         LightweightCharts.createChart(
             container,
@@ -2012,6 +2084,9 @@ function parseNumber(
 async function loadChart(){
 
     clearOverlays();
+    const chartStatus=document.getElementById("chartStatus");
+    chartStatus.textContent="Loading verified "+currentSymbol+" market data…";
+    chartStatus.style.display="flex";
 
     const encoded =
         currentSymbol
@@ -2033,10 +2108,13 @@ async function loadChart(){
         const response =
             await fetch(url);
 
+        if(requireUnlock(response)) return;
+
         const data =
             await response.json();
 
         if(!data.ok){
+            chartStatus.textContent=data.message || "No verified market history is available for this instrument.";
             return;
         }
 
@@ -2108,6 +2186,13 @@ async function loadChart(){
             currentBars
         );
 
+        if(!currentBars.length){
+            chartStatus.textContent="No verified candles are available for "+currentSymbol+" at "+currentTimeframe+".";
+            return;
+        }
+
+        chartStatus.style.display="none";
+
         document
             .getElementById(
                 "selectedPrice"
@@ -2133,6 +2218,7 @@ async function loadChart(){
     catch(error){
 
         console.error(error);
+        chartStatus.textContent="Chart unavailable. FX did not fabricate a price.";
     }
 
 }
@@ -2567,8 +2653,10 @@ async function searchMarkets(){
             + encodeURIComponent(
                 query
             )
-            + "&limit=100"
+            + "&limit=100&focused=true"
         );
+
+    if(requireUnlock(response)) return;
 
     const data =
         await response.json();
@@ -2650,6 +2738,7 @@ function selectMarket(item){
             currentName;
 
     loadChart();
+    loadStrategyGuidance();
 
     buildTabs();
 
@@ -3123,8 +3212,14 @@ function applyTrainingAsset(){
 async function loadTerminalProviderStatus(){
     const status = document.getElementById("terminalAiStatus");
     try{
-        const data = await fetch("/api/status").then(response => response.json());
-        if(data.kimi && data.ollama) status.textContent = "● Kimi + Ollama available";
+        const response=await fetch("/api/status");
+        if(requireUnlock(response)) return;
+        const data = await response.json();
+        const peerCount = Array.isArray(data.openrouter_council_models) ? data.openrouter_council_models.length : 0;
+        const gooseReady = Boolean(data.goose && data.goose.enabled && data.goose.installed);
+        const configuredCount = Number(Boolean(data.kimi)) + Number(Boolean(data.ollama)) + peerCount + Number(gooseReady);
+        if(configuredCount > 2) status.textContent = "● " + configuredCount + " peer committee routes configured";
+        else if(data.kimi && data.ollama) status.textContent = "● Kimi + Ollama available";
         else if(data.ollama) status.textContent = "● Ollama available";
         else if(data.kimi) status.textContent = "● Kimi available";
         else status.textContent = "● Deterministic fallback";
@@ -3774,6 +3869,7 @@ buildTabs();
 searchMarkets();
 
 loadChart();
+loadStrategyGuidance();
 
 loadTab(
     "overview"

@@ -40,6 +40,27 @@ def grounded_context_answer(message: str, context: dict, rows: list[dict]) -> st
     lower = message.lower()
     symbol = str(context.get("symbol") or "the selected market")
     council = context.get("model_council") or {}
+    if any(term in lower for term in ("signal", "entry", "buy", "sell", "suggest")):
+        agreement = council.get("agreement") or {}
+        overall = str(council.get("overall") or "NO CLEAR EDGE")
+        try:
+            from services.learning.status import learning_overview
+            evidence = [
+                item for item in learning_overview()["records"]
+                if item.get("is_current") and str(item.get("instrument") or "") == symbol
+            ]
+            approved = any(item.get("eligible") for item in evidence)
+            examining = sum(item.get("stage") == "EXAMINATION" for item in evidence)
+        except Exception:
+            approved, examining = False, 0
+        if not approved:
+            return (
+                f"{symbol}: WAIT. The current Model Council research view is {overall}, with "
+                f"{agreement.get('POSITIVE', 0)} positive, {agreement.get('NEGATIVE', 0)} negative, and "
+                f"{agreement.get('NEUTRAL', 0)} neutral votes. No strategy is approved for this instrument; "
+                f"{examining} model version(s) are in examination. FX cannot provide an executable BUY or SELL entry "
+                "until qualification, deterministic risk, stop, profit plan, and maximum-loss checks pass. No trade was sent."
+            )
     if "strateg" in lower or "model" in lower:
         members = council.get("members") or []
         if members:

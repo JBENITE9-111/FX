@@ -387,7 +387,7 @@ async function loadCatalog() {{
     const assetClass = document.getElementById("assetClass").value;
     const query = document.getElementById("instrumentSearch").value.trim();
     const status = document.getElementById("catalogStatus");
-    const params = new URLSearchParams({{asset_class:assetClass,limit:"100"}});
+    const params = new URLSearchParams({{asset_class:assetClass,limit:"100",focused:"true"}});
     if (query) params.set("q", query);
     status.textContent = "Searching the local global catalog…";
     try {{

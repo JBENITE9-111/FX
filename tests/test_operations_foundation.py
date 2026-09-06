@@ -11,6 +11,7 @@ from services.events.contracts import SignalState, StandardSignal
 from services.operations import store
 from services.operations.notifications import _post, channel_health, route_event
 from services.operations.reports import generate_report, render_markdown
+from services.agents.operations_team import AutomatedAgentTeam
 
 
 class OperationsFoundationTests(unittest.TestCase):
@@ -111,6 +112,21 @@ class OperationsFoundationTests(unittest.TestCase):
         )
         self.assertIsNone(signal.calibrated_confidence)
         self.assertEqual(signal.confidence_label, "UNVERIFIED_SCORE")
+
+    def test_automated_agent_team_keeps_risk_and_compliance_deterministic(self):
+        team = AutomatedAgentTeam()
+        snapshot = {
+            "sentinel": {"status": "PASS", "checks": [{"name": "Local paper databases", "status": "PASS"}]},
+            "bots": [{"status": "RUNNING"}], "signals": [], "events": [], "favorites": [],
+            "learning": {"summary": {"current_models": 2, "examining": 0, "validation_blocked": 2}},
+            "trading": {"account": {"equity": 1000, "total_exposure": 100}, "open_positions": [], "metrics": {"closed_trades": 0}},
+            "canonical_trades": [],
+        }
+        self.assertEqual(team._evaluate("risk_management", snapshot)["status"], "PASS")
+        with patch.dict("os.environ", {"AI_CAN_EXECUTE_LIVE": "true"}):
+            self.assertEqual(team._evaluate("compliance", snapshot)["status"], "BLOCK")
+        refiner = team._evaluate("prompt_strategy_refiner", snapshot)
+        self.assertEqual(refiner["automatic_changes"], [])
 
 
 if __name__ == "__main__":

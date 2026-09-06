@@ -19,8 +19,8 @@ def learning_universe():
 
 @router.get("/catalog")
 def learning_catalog(asset_class: str | None = None, market: str | None = None,
-                     q: str = "", limit: int = Query(default=500, ge=1, le=1000)):
-    return search_training_catalog(asset_class=asset_class, market=market, query=q, limit=limit)
+                     q: str = "", limit: int = Query(default=500, ge=1, le=1000), focused: bool = False):
+    return search_training_catalog(asset_class=asset_class, market=market, query=q, limit=limit, focused=focused)
 
 
 @router.post("/start")

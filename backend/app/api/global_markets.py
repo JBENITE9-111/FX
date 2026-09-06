@@ -6,6 +6,7 @@ from fastapi import (
 from backend.app.services.market_data.lse_global import (
     LSEGlobalMarketData,
 )
+from services.instruments.training_universe import search_training_catalog
 
 
 router = APIRouter(
@@ -84,17 +85,23 @@ async def search(
         ge=1,
         le=500,
     ),
+    focused: bool = True,
 ):
 
     try:
 
-        service = LSEGlobalMarketData()
-
-        rows = service.search(
-            query=q,
-            category=category,
-            limit=limit,
-        )
+        if focused:
+            aliases = {"stock": "Stocks", "stocks": "Stocks", "etf": "ETFs", "etfs": "ETFs",
+                       "index": "Indices", "indices": "Indices", "forex": "Forex", "fx": "Forex",
+                       "commodity": "Commodities", "commodities": "Commodities", "crypto": "Crypto",
+                       "future": "Futures", "futures": "Futures"}
+            result = search_training_catalog(asset_class=aliases.get((category or "").lower()), query=q,
+                                             limit=limit, focused=True)
+            rows = [{"symbol": item["symbol"], "name": item["name"], "category": item["asset_class"],
+                     "dataset": item["dataset"], "country": item["market"]} for item in result["instruments"]]
+        else:
+            service = LSEGlobalMarketData()
+            rows = service.search(query=q, category=category, limit=limit)
 
         return {
             "ok": True,
