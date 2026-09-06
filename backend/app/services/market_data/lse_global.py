@@ -14,7 +14,7 @@ ROOT = Path(
 CATALOG_FILE = (
     ROOT
     / "data"
-    / "catalog"
+    / "runtime"
     / "lse_catalog.json"
 )
 

@@ -6,7 +6,8 @@ from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path("/Users/macmac/Documents/Codex/FX")
-CATALOG_PATH = ROOT / "data" / "catalog" / "lse_catalog.json"
+RUNTIME_CATALOG_PATH = ROOT / "data" / "runtime" / "lse_catalog.json"
+SEED_CATALOG_PATH = ROOT / "data" / "catalog" / "lse_catalog.json"
 SUPPORTED_ASSET_CLASSES = ("Stocks", "ETFs", "Indices", "Forex", "Commodities", "Crypto", "Futures")
 DEFAULT_TIMEFRAMES = {
     "Stocks": "1d", "ETFs": "1d", "Indices": "1d", "Futures": "1d",
@@ -155,7 +156,8 @@ def _market_name(value: object) -> str:
 @lru_cache(maxsize=1)
 def global_training_catalog() -> tuple[dict, ...]:
     try:
-        rows = json.loads(CATALOG_PATH.read_text())
+        catalog_path = RUNTIME_CATALOG_PATH if RUNTIME_CATALOG_PATH.exists() else SEED_CATALOG_PATH
+        rows = json.loads(catalog_path.read_text())
     except (OSError, json.JSONDecodeError):
         rows = []
     result: list[dict] = []
