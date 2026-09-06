@@ -582,6 +582,35 @@ select {
         #83cda0;
 }
 
+.chat-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.clear-chat {
+    border: 1px solid #30343a;
+    background: transparent;
+    color: #aeb4bc;
+    border-radius: 6px;
+    padding: 5px 7px;
+    font-size: 9px;
+    cursor: pointer;
+}
+
+.clear-chat:hover,
+.clear-chat:focus-visible {
+    color: #fff;
+    border-color: #626872;
+}
+
+.chat-empty {
+    color: #747b85;
+    font-size: 10px;
+    line-height: 1.5;
+    padding: 12px 4px;
+}
+
 .messages {
     flex:
         1;
@@ -1208,9 +1237,10 @@ Select a section.
 Ask FX
 </strong>
 
-<span class="ai-status" id="terminalAiStatus">
-● Checking AI
-</span>
+<div class="chat-head-actions">
+<span class="ai-status" id="terminalAiStatus">● Checking AI</span>
+<button class="clear-chat" type="button" onclick="clearChatScreen()" title="Clear visible messages while keeping private memory">Clear screen</button>
+</div>
 
 </div>
 
@@ -1529,6 +1559,10 @@ let activeChatJobs =
 
 const personalConversationId = "personal";
 
+let chatVisibleAfter = Number(
+    localStorage.getItem("fx-chat-visible-after") || 0
+);
+
 let conversation =
     JSON.parse(
         localStorage.getItem(
@@ -1602,6 +1636,14 @@ function renderConversation(){
 
     box.innerHTML = "";
 
+    if(!conversation.length){
+        const empty=document.createElement("div");
+        empty.className="chat-empty";
+        empty.textContent="Clean screen · private chat memory remains available.";
+        box.appendChild(empty);
+        return;
+    }
+
     conversation.slice(-40).forEach(
         item => {
 
@@ -1639,6 +1681,17 @@ function renderConversation(){
     box.scrollTop =
         box.scrollHeight;
 
+}
+
+
+function clearChatScreen(){
+    chatVisibleAfter=Date.now()/1000;
+    conversation=[];
+    activeChatJobs=[];
+    localStorage.setItem("fx-chat-visible-after",String(chatVisibleAfter));
+    saveChat();
+    renderConversation();
+    document.getElementById("chatInput").focus();
 }
 
 
@@ -1757,7 +1810,7 @@ async function loadPersonalChatMemory(){
         const response=await fetch("/api/control/chat/history?conversation_id="+encodeURIComponent(personalConversationId));
         if(requireUnlock(response)) return;
         const payload=await response.json();
-        const stored=(payload.messages||[]).map(item=>({role:item.role==="assistant"?"fx":"user",text:item.content,status:"complete",symbol:item.symbol}));
+        const stored=(payload.messages||[]).filter(item=>Number(item.created_at||0)>chatVisibleAfter).map(item=>({role:item.role==="assistant"?"fx":"user",text:item.content,status:"complete",symbol:item.symbol}));
         if(stored.length){conversation=stored;saveChat();renderConversation();}
     }catch{}
 }
