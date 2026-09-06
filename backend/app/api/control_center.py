@@ -330,10 +330,16 @@ async def training_registry():
 
 @router.get("/bots")
 async def bot_list():
+    from services.learning.continuous import continuous_learning
 
     return {
         "ok": True,
         "bots": bots.list(),
+        "learning": continuous_learning.status(),
+        "explanation": (
+            "Scanner services watch markets. The separate continuous-learning "
+            "worker trains five challenger models for each approved target."
+        ),
     }
 
 

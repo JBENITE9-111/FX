@@ -1387,9 +1387,10 @@ Trading Bots
 </h1>
 
 <p style="color:#91979e;font-size:11px">
-Watch what every bot is scanning, what markets it is interested in and what candidates it currently sees.
+These are market scanner services, not the individual trained brains. They watch every supported asset class while the Learning Center trains the global target queue separately.
 </p>
 
+<div id="botLearningStatus" class="card" style="margin-bottom:12px"></div>
 <div style="display:flex;gap:8px;margin-bottom:12px"><button class="panel-button" onclick="startAllBots()">Start all scanners</button><span id="botFleetStatus" class="card-meta"></span></div>
 
 <div
@@ -3441,6 +3442,17 @@ async function loadBots(){
     if(!data.ok){
         return;
     }
+
+    const learning=data.learning||{};
+    const learningNode=document.getElementById("botLearningStatus");
+    learningNode.innerHTML=`
+        <div class="card-title">Global learning fleet</div>
+        <div class="card-meta">
+        ${learning.worker_alive ? "RUNNING" : "STOPPED"} ·
+        ${Number(learning.universe_size||0)} approved targets ·
+        five challenger models per target · research only
+        ${learning.current ? "<br>Training now: "+learning.current.symbol+" · "+learning.current.asset_class+" · "+learning.current.timeframe : ""}
+        </div>`;
 
     data.bots.forEach(
         bot => {
