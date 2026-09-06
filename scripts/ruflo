@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+
+FX_ROOT="/Users/macmac/Documents/Codex/FX"
+
+export CLAUDE_FLOW_CWD="$FX_ROOT"
+export CLAUDE_FLOW_MEMORY_PATH="$FX_ROOT/.claude-flow/data"
+export RUFLO_DAEMON_AUTOSTART=0
+export RUFLO_NO_SKILLS_SH=1
+RUFLO_USER_CACHE="$(npm config get cache 2>/dev/null || true)"
+export npm_config_cache="$FX_ROOT/.cache/npm-ruflo"
+export npm_config_omit=optional
+export npm_config_audit=false
+
+cd "$FX_ROOT"
+
+# Reuse an already verified Ruflo package from the user's npm cache when
+# possible. This Mac's legacy npm cache contains root-owned metadata, so asking
+# npx to mutate it fails even though the package itself is readable.
+if [ -n "$RUFLO_USER_CACHE" ]; then
+  for RUFLO_CLI in "$RUFLO_USER_CACHE"/_npx/*/node_modules/ruflo/bin/ruflo.js; do
+    [ -f "$RUFLO_CLI" ] || continue
+    RUFLO_PACKAGE="${RUFLO_CLI%/bin/ruflo.js}/package.json"
+    RUFLO_VERSION="$(node -p 'require(process.argv[1]).version' "$RUFLO_PACKAGE" 2>/dev/null || true)"
+    if [ "$RUFLO_VERSION" = "3.38.21" ]; then
+      exec node "$RUFLO_CLI" "$@"
+    fi
+  done
+fi
+
+# Clean-machine fallback. The cache is project-local and ignored by Git.
+exec npx -y ruflo@3.38.21 "$@"

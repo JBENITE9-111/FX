@@ -147,6 +147,44 @@ def run():
             })
             continue
 
+        required_trade_plan = {
+            "signal_id": item.get("signal_id"),
+            "asset_class": item.get("asset_class"),
+            "stop": item.get("stop"),
+            "structural_invalidation": item.get("structural_invalidation"),
+            "profit_plan": item.get("profit_plan"),
+            "maximum_loss": item.get("maximum_loss"),
+        }
+        missing_trade_plan = [
+            field
+            for field, value in required_trade_plan.items()
+            if value is None or (isinstance(value, str) and not value.strip())
+        ]
+        if missing_trade_plan:
+            skipped.append({
+                "strategy": strategy,
+                "reason": (
+                    "PAPER_ELIGIBLE signal is missing protected execution fields: "
+                    + ", ".join(missing_trade_plan)
+                ),
+            })
+            continue
+
+        try:
+            stop = float(required_trade_plan["stop"])
+            structural_invalidation = float(
+                required_trade_plan["structural_invalidation"]
+            )
+            maximum_loss = float(required_trade_plan["maximum_loss"])
+            if maximum_loss <= 0:
+                raise ValueError("maximum_loss must be positive")
+        except (TypeError, ValueError) as exc:
+            skipped.append({
+                "strategy": strategy,
+                "reason": f"invalid protected execution plan: {exc}",
+            })
+            continue
+
 
         side_name = (
             "LONG"
@@ -192,31 +230,52 @@ def run():
             continue
 
 
-        order = submit_market_order(
-            instrument=instrument,
+        try:
+            order = submit_market_order(
+                instrument=instrument,
 
-            asset_class="research",
+                asset_class=str(required_trade_plan["asset_class"]),
 
-            side=direction,
+                side=direction,
 
-            price=float(
-                price
-            ),
+                price=float(
+                    price
+                ),
 
-            notional=notional,
+                notional=notional,
 
-            strategy_id=strategy,
+                strategy_id=strategy,
 
-            bot_id="strategy_fleet",
+                bot_id="strategy_fleet",
 
-            metadata={
-                "source":
-                    "FX Paper Strategy Fleet",
+                signal_id=str(required_trade_plan["signal_id"]),
 
-                "mode":
-                    "LOCAL_PAPER_AUTO",
-            },
-        )
+                stop=stop,
+
+                structural_invalidation=structural_invalidation,
+
+                profit_plan=str(required_trade_plan["profit_plan"]),
+
+                maximum_loss=maximum_loss,
+
+                strategy_version=str(item.get("strategy_version") or "1"),
+
+                metadata={
+                    "source":
+                        "FX Paper Strategy Fleet",
+
+                    "mode":
+                        "LOCAL_PAPER_AUTO",
+
+                    "data_source": item.get("data_source"),
+                },
+            )
+        except (TypeError, ValueError) as exc:
+            skipped.append({
+                "strategy": strategy,
+                "reason": f"protected paper broker rejected signal: {exc}",
+            })
+            continue
 
 
         opened.append(

@@ -258,3 +258,45 @@ exit
 journal
 learn
 ```
+
+## Ruflo and Codex
+
+Codex remains the final engineering authority. Ruflo is a project-local
+coordination, review, workflow, and engineering-memory layer. It is not part of
+the FX market-data, signal, risk, execution, authentication, or broker runtime.
+
+Use `./scripts/ruflo` for Ruflo commands. The wrapper pins Ruflo 3.38.21,
+anchors it to this project, disables daemon autostart and bulk skill installs,
+and keeps the npm cache local and ignored.
+
+Use Ruflo for meaningful work that benefits from independent specialists:
+
+```text
+research
+-> implementation
+-> testing
+-> backtest/evidence review when trading behavior changes
+-> deterministic risk review
+-> adversarial review
+-> final Codex review
+```
+
+Do not use Ruflo for one-line edits, routine reads, or work a single Codex turn
+can verify directly. Do not use Ruflo agents to execute trades, promote models,
+change risk limits, access secrets, unlock TOTP, or start FX runtime workers.
+
+Ruflo memory may store non-secret project knowledge such as architectural
+decisions, verified bugs and fixes, rejected approaches, experiment summaries,
+data limitations, execution assumptions, risk rules, and test conclusions.
+Ruflo memory is currently unavailable on this Intel Mac because the upstream
+ONNX runtime has no Darwin x64 binding; use existing FX SQLite evidence stores
+until a verified compatible backend is installed.
+SQL/DuckDB/SQLite FX stores remain authoritative for prices, experiments,
+orders, positions, journals, and outcomes. Never store credentials, tokens,
+TOTP material, signing keys, private customer data, or raw secret-bearing logs
+in Ruflo memory.
+
+Keep Ruflo bounded: hierarchical topology, no autoscaling, at most six roles,
+no daemon, no automatic hooks, no federation, and no autonomous loops. Record
+specialist disagreement and evidence; Codex makes the final code decision and
+deterministic FX risk retains absolute veto authority.

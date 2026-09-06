@@ -362,6 +362,7 @@ SQLite backups; it cannot change risk limits or authorize trades.
 ./scripts/clean-workspace.sh
 .venv-core/bin/python -m pytest -q
 .venv-core/bin/python -m compileall -q backend services tests
+.venv-core/bin/python scripts/verify-fx-v4.py
 ```
 
 `pytest.ini` restricts project test discovery to `tests/`; downloaded reference
@@ -383,4 +384,6 @@ FX_COMPLETE_CONVERSATION_CONTEXT.md
 docs/TRADING_SYSTEM_CONSTITUTION.md
 docs/RISK_ENGINE_SPEC.md
 docs/STRATEGY_PROMOTION_PIPELINE.md
+docs/FX_IMPLEMENTATION_STATUS.md
+docs/RUFLO_CODEX_ARCHITECTURE.md
 ```

@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path("/Users/macmac/Documents/Codex/FX")
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 print()
@@ -271,6 +274,20 @@ def collect_routes(
         found.update(
             collect_routes(
                 router,
+                seen,
+            )
+        )
+
+    original_router = getattr(
+        obj,
+        "original_router",
+        None,
+    )
+
+    if original_router is not None:
+        found.update(
+            collect_routes(
+                original_router,
                 seen,
             )
         )

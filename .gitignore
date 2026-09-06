@@ -17,6 +17,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.cache/
 
 data/cache/
 logs/
@@ -36,3 +37,15 @@ data/**/*.sqlite3
 data/**/*.sqlite3-*
 data/**/*.log
 *.inspect.ndjson
+
+# Ruflo local secrets and runtime data
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+.claude-flow/policy/
+.claude-flow/harness-active-policy.json
+.claude/.proven-config-version
+.claude/proven-config.json
+.swarm/

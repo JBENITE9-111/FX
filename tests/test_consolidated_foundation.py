@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from services.campaigns.store import CampaignStore
 from services.local_paper import broker
+from services.local_paper import bot_executor
 from services.operations import store as operations_store
 from services.learning.status import learning_overview
 from services.instruments.training_universe import search_training_catalog, universe
@@ -48,6 +49,47 @@ class ConsolidatedFoundationTests(unittest.TestCase):
                 instrument="XAUUSD", asset_class="Commodities", side="BUY",
                 price=100, quantity=1, strategy_id="s", bot_id="b",
             )
+
+    def test_paper_fleet_executor_requires_and_forwards_protected_plan(self):
+        fleet_path = Path(self.temp.name) / "fleet.json"
+        previous_fleet = bot_executor.FLEET
+        bot_executor.FLEET = fleet_path
+        base = {
+            "strategy": "trend",
+            "symbol": "EUR/USD",
+            "signal_name": "LONG",
+            "last_price": 100,
+            "eligibility": "PAPER_ELIGIBLE",
+        }
+        try:
+            import json
+
+            fleet_path.write_text(json.dumps({"strategies": [base]}))
+            blocked = bot_executor.run()
+            self.assertEqual([], blocked["opened"])
+            self.assertIn("missing protected execution fields", blocked["skipped"][0]["reason"])
+
+            protected = {
+                **base,
+                "signal_id": "qualified-signal-1",
+                "asset_class": "Forex",
+                "stop": 95,
+                "structural_invalidation": 95,
+                "profit_plan": "FIXED_TARGET_110",
+                "maximum_loss": 5,
+                "strategy_version": "2",
+                "data_source": "verified-test-source",
+            }
+            fleet_path.write_text(json.dumps({"strategies": [protected]}))
+            complete = bot_executor.run()
+            self.assertEqual(1, len(complete["opened"]))
+            position = broker.positions()[0]
+            self.assertEqual(95, position["stop"])
+            self.assertEqual("FIXED_TARGET_110", position["profit_plan"])
+            self.assertEqual(5, position["maximum_loss"])
+            self.assertEqual("2", position["strategy_version"])
+        finally:
+            bot_executor.FLEET = previous_fleet
 
     def test_legacy_positions_receive_explicit_protection(self):
         now = time.time()
