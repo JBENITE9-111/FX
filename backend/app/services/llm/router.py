@@ -53,10 +53,14 @@ class FXLLMRouter:
         if not _enabled("OLLAMA_ENABLED", True):
             raise RuntimeError("Ollama is disabled")
         timeout = httpx.Timeout(connect=5, read=90, write=20, pool=20)
+        compact_messages = [
+            {**message, "content": str(message.get("content", ""))[:6000]}
+            for message in messages
+        ]
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
                 f"{self.ollama_url}/api/chat",
-                json={"model": self.ollama_model, "messages": messages, "stream": False, "think": False, "keep_alive": "30m", "options": {"temperature": 0.1, "num_predict": 250}},
+                json={"model": self.ollama_model, "messages": compact_messages, "stream": False, "think": False, "keep_alive": "30m", "options": {"temperature": 0.1, "num_predict": 220}},
             )
             response.raise_for_status()
             return response.json()["message"]["content"]
@@ -78,6 +82,11 @@ class FXLLMRouter:
         prompt = f"USER QUESTION:\n{question}\n\nVERIFIED FX EVIDENCE:\n{evidence[:12000]}"
         child_env = os.environ.copy()
         child_env.update({"GOOSE_MODE": "chat", "GOOSE_MAX_TOKENS": "350", "GOOSE_TELEMETRY_ENABLED": "false"})
+        goose_path_root = os.path.abspath(
+            os.getenv("GOOSE_PATH_ROOT", "").strip() or "data/goose_runtime"
+        )
+        os.makedirs(goose_path_root, mode=0o700, exist_ok=True)
+        child_env["GOOSE_PATH_ROOT"] = goose_path_root
         if self.goose_provider == "openrouter" and self.openrouter_key:
             child_env["GOOSE_PROVIDER__API_KEY"] = self.openrouter_key
         process = await asyncio.create_subprocess_exec(
