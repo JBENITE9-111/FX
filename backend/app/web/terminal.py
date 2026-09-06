@@ -3448,10 +3448,11 @@ async function loadBots(){
     learningNode.innerHTML=`
         <div class="card-title">Global learning fleet</div>
         <div class="card-meta">
-        ${learning.worker_alive ? "RUNNING" : "STOPPED"} ·
+        ${String(learning.status||"STOPPED").replaceAll("_"," ")} ·
         ${Number(learning.universe_size||0)} approved targets ·
         five challenger models per target · research only
         ${learning.current ? "<br>Training now: "+learning.current.symbol+" · "+learning.current.asset_class+" · "+learning.current.timeframe : ""}
+        ${learning.status==="PAUSED_RESOURCE_PRESSURE" ? "<br>Waiting safely: CPU "+Number(learning.cpu_percent||0).toFixed(1)+"% exceeds "+Number(learning.max_cpu_percent||85).toFixed(0)+"%; automatic retry remains active." : ""}
         </div>`;
 
     data.bots.forEach(
