@@ -86,8 +86,8 @@ def universe() -> list[dict]:
 
     The full catalog remains available for one-off/batch experiments. Continuously
     training thousands of instruments would waste compute and multiply-test the
-    same weak hypotheses, so autopilot uses representative global coverage capped
-    by ``FX_GLOBAL_TRAINING_LIMIT`` (64 by default).
+    same weak hypotheses, so autopilot uses the owner's verified focused catalog
+    plus Favorites, capped by ``FX_GLOBAL_TRAINING_LIMIT`` (256 by default).
     """
     catalog = {item["symbol"]: dict(item) for item in global_training_catalog()}
     selected: list[dict] = []
@@ -121,7 +121,16 @@ def universe() -> list[dict]:
         selected.append(base)
         seen.add(symbol)
 
-    limit = max(1, int(os.getenv("FX_GLOBAL_TRAINING_LIMIT", "64")))
+    for asset_class in SUPPORTED_ASSET_CLASSES:
+        for symbol in FOCUSED_SYMBOLS_BY_CLASS.get(asset_class, ()):
+            base = catalog.get(symbol)
+            if not base or symbol in seen:
+                continue
+            base["universe"] = "Verified Focused Research"
+            selected.append(base)
+            seen.add(symbol)
+
+    limit = max(1, int(os.getenv("FX_GLOBAL_TRAINING_LIMIT", "256")))
     return selected[:limit]
 
 

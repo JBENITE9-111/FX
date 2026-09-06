@@ -177,8 +177,8 @@ class ConsolidatedFoundationTests(unittest.TestCase):
 
     def test_continuous_learning_uses_a_bounded_global_multi_asset_universe(self):
         targets = universe()
-        self.assertGreaterEqual(len(targets), 40)
-        self.assertLessEqual(len(targets), 64)
+        self.assertGreaterEqual(len(targets), 227)
+        self.assertLessEqual(len(targets), 256)
         self.assertEqual(
             {"Stocks", "ETFs", "Indices", "Forex", "Commodities", "Crypto", "Futures"},
             {item["asset_class"] for item in targets},

@@ -90,9 +90,11 @@ async def root():
 async def health():
     from services.monitoring.sentinel import sentinel
     from services.agents.operations_team import operations_team
+    from services.learning.continuous import continuous_learning
     from backend.app.services.bots.runtime import bots
     team = operations_team.status()
     bot_rows = bots.list()
+    learning = continuous_learning.status()
     return {
         "status": "ok",
         "project": "FX",
@@ -109,9 +111,20 @@ async def health():
             "last_run_at": team["last_run_at"],
         },
         "bots": {
+            "kind": "watch_only_market_scanners",
             "running": sum(str(item.get("status")) == "RUNNING" for item in bot_rows),
             "total": len(bot_rows),
+            "learns_while_scanning": False,
             "paper_only": True,
+        },
+        "learning": {
+            "status": learning.get("status"),
+            "worker_alive": learning.get("worker_alive"),
+            "approved_targets": learning.get("universe_size"),
+            "completed_jobs": learning.get("completed_jobs", 0),
+            "failed_attempts": learning.get("failed_jobs", 0),
+            "current": learning.get("current"),
+            "research_only": True,
         },
         "sentinel": sentinel.status(),
     }
