@@ -150,6 +150,11 @@ The script hides input, writes only to the ignored `.env` file with owner-only p
 
 The app never sends live orders from the scheduler. Local paper orders still require entry, structural invalidation, stop, profit plan, maximum loss and position size.
 
+Generated local-paper plans now show the complete loss calculation and support
+automatic paper-only fixed, scaled, and ATR-trailing exits. Plans are bound to
+the selected instrument/strategy/bot context, expire after five minutes, and
+are journaled when executed. See `docs/FX_TRADE_PROTECTION.md`.
+
 ## Global Markets
 
 Organize by:

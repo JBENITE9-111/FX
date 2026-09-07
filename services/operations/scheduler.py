@@ -16,6 +16,7 @@ class PersistentScheduler:
         self._thread: threading.Thread | None = None
         self._last_error: str | None = None
         self._last_tick: float | None = None
+        self._last_paper_monitor: float = 0.0
 
     def start(self) -> dict:
         if self._thread and self._thread.is_alive():
@@ -69,6 +70,10 @@ class PersistentScheduler:
                 finish_schedule(schedule, status="FAILED", summary=self._last_error, event_id=event_id, report_id=report_id)
             processed += 1
         process_due_deliveries()
+        if time.time() - self._last_paper_monitor >= 30:
+            from services.local_paper.monitor import refresh_open_position_marks
+            refresh_open_position_marks()
+            self._last_paper_monitor = time.time()
         if processed and not self._last_error:
             self._last_error = None
         return processed

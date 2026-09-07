@@ -268,6 +268,7 @@ button {
     background:
         var(--red);
 }
+.plan-button { background:#252930;color:var(--text);border:1px solid var(--line); }
 
 table {
     width:100%;
@@ -348,6 +349,17 @@ td {
 .suggestion strong { display:block;font-size:13px;margin-bottom:5px; }
 .suggestion p { margin:4px 0;color:var(--muted);font-size:11px;line-height:1.45; }
 .suggestion button { margin-top:8px;background:#e9eaec;color:#111;padding:7px 9px;font-size:10px; }
+.suggestion.selected { border-color:var(--green);box-shadow:0 0 0 1px rgba(101,209,139,.25); }
+.risk-panel { display:none;border:1px solid var(--line);background:#0d0f12;padding:12px;margin:10px 0;border-radius:8px; }
+.risk-panel.visible { display:block; }
+.risk-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-top:9px; }
+.risk-item span { display:block;color:var(--muted);font-size:9px;text-transform:uppercase; }
+.risk-item strong { display:block;font-size:12px;margin-top:2px; }
+.risk-decision { font-weight:800;letter-spacing:.5px; }
+.risk-decision.PASS { color:var(--green); }
+.risk-decision.REDUCE_SIZE,.risk-decision.BLOCK { color:var(--red); }
+.warning { color:#e7bd72;border-left:2px solid #e7bd72;padding-left:9px; }
+.position-detail td { background:#0d0f12;color:var(--muted);font-size:10px;line-height:1.55;padding-top:7px;padding-bottom:10px; }
 
 @media(max-width:900px) {
 
@@ -453,7 +465,7 @@ Instrument
 <input
  id="instrument"
  value="AAPL"
- onchange="loadLatestPaperPrice();loadBotSuggestions()"
+ onchange="clearProtectionContext();loadLatestPaperPrice();loadBotSuggestions()"
 >
 
 
@@ -461,7 +473,7 @@ Instrument
 Asset Class
 </label>
 
-<select id="assetClass" onchange="loadMarketList(false)">
+<select id="assetClass" onchange="clearProtectionContext();loadMarketList(false)">
 
 <option value="Stocks">
 Stock
@@ -511,6 +523,7 @@ Current Price
  type="number"
  step="any"
  placeholder="328.10"
+ oninput="clearProtectionContext()"
 >
 
 
@@ -523,6 +536,7 @@ Paper Notional ($)
  type="number"
  step="any"
  value="100"
+ oninput="clearProtectionContext()"
 >
 
 
@@ -533,10 +547,11 @@ Strategy
 <input
  id="strategy"
  value="manual"
+ onchange="clearProtectionContext()"
 >
 
 <label>Bot ID</label>
-<input id="botId" value="manual-paper" list="botOptions">
+<input id="botId" value="manual-paper" list="botOptions" onchange="clearProtectionContext()">
 <datalist id="botOptions"></datalist>
 
 <label>Strategy version</label>
@@ -546,14 +561,24 @@ Strategy
 <input id="campaignId" placeholder="Leave blank for a standalone experiment">
 
 <label>Protective stop / invalidation</label>
-<input id="stop" type="number" step="any" placeholder="Required">
+<input id="stop" type="number" step="any" placeholder="Required" oninput="useManualProtection()">
 
 <label>Profit plan</label>
-<input id="profitPlan" placeholder="For example: fixed target at 340">
+<input id="profitPlan" placeholder="For example: fixed target at 340" oninput="useManualProtection()">
+<input id="protectionPlanId" type="hidden">
+<input id="planSource" type="hidden" value="USER_DEFINED">
 <div id="protectionSuggestions" class="suggestions"><div class="note">Choose a bot identity, then choose BUY or SELL to calculate protected plan options.</div></div>
 
+<div class="side">
+<button type="button" class="plan-button" onclick="loadProtectionSuggestions('BUY')">Calculate BUY plan</button>
+<button type="button" class="plan-button" onclick="loadProtectionSuggestions('SELL')">Calculate SELL plan</button>
+</div>
+
+<div id="riskPanel" class="risk-panel" aria-live="polite"></div>
+
 <label>Maximum loss ($)</label>
-<input id="maximumLoss" type="number" step="any" placeholder="Required">
+<input id="maximumLoss" type="number" step="any" placeholder="Required" oninput="useManualProtection()">
+<div class="note warning">This is the planned loss envelope at the modeled stop fill. A gap, unavailable liquidity, or slippage can produce a larger loss. Short losses can exceed the planned amount.</div>
 
 
 <div class="side">
@@ -562,14 +587,14 @@ Strategy
  class="buy"
  onclick="submitOrder('BUY')"
 >
-BUY PAPER
+SUBMIT BUY PAPER
 </button>
 
 <button
  class="sell"
  onclick="submitOrder('SELL')"
 >
-SELL PAPER
+SUBMIT SELL PAPER
 </button>
 
 </div>
@@ -613,7 +638,7 @@ Instrument
 </th>
 
 <th>
-Source
+Strategy / Bot
 </th>
 
 <th>
@@ -680,6 +705,36 @@ function money(v) {
     );
 }
 
+function formatApiError(detail){
+    if(typeof detail === "string") return detail;
+    if(Array.isArray(detail)) return detail.map(item => {
+        const field = Array.isArray(item.loc) ? item.loc.filter(value => value !== "body").join(" → ") : "request";
+        return field + ": " + (item.msg || "invalid value");
+    }).join(" · ");
+    if(detail && typeof detail === "object") return detail.message || JSON.stringify(detail);
+    return "The request could not be completed.";
+}
+
+function clearProtectionContext(){
+    document.getElementById("stop").value="";
+    document.getElementById("profitPlan").value="";
+    document.getElementById("maximumLoss").value="";
+    document.getElementById("protectionPlanId").value="";
+    document.getElementById("planSource").value="USER_DEFINED";
+    const root=document.getElementById("protectionSuggestions");
+    root.innerHTML='<div class="note">Choose BUY or SELL to calculate a fresh plan for the current instrument, price, notional, strategy, and bot.</div>';
+    const risk=document.getElementById("riskPanel");risk.className="risk-panel";risk.replaceChildren();
+}
+
+function useManualProtection(){
+    if(!document.getElementById("protectionPlanId").value) return;
+    document.getElementById("protectionPlanId").value="";
+    document.getElementById("planSource").value="USER_DEFINED";
+    document.querySelectorAll(".suggestion.selected").forEach(card=>card.classList.remove("selected"));
+    const risk=document.getElementById("riskPanel");risk.className="risk-panel";risk.replaceChildren();
+    document.getElementById("message").textContent="The generated plan was changed. It is now user-defined and will be revalidated before paper submission.";
+}
+
 let paperCatalog = [];
 let paperSearchTimer = null;
 
@@ -728,6 +783,7 @@ async function loadMarketList(preserveInstrument = false){
 async function selectPaperInstrument(){
     const selected = paperCatalog.find(item => item.instrument_id === document.getElementById("marketInstrument").value);
     if(!selected) return;
+    clearProtectionContext();
     document.getElementById("instrument").value = selected.symbol;
     await Promise.all([loadLatestPaperPrice(), loadBotSuggestions()]);
 }
@@ -747,6 +803,28 @@ async function loadLatestPaperPrice(){
 
 function suggestionLine(text){
     const line = document.createElement("p");line.textContent = text;return line;
+}
+
+function escapeHtml(value){
+    return String(value??"").replace(/[&<>'"]/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[character]);
+}
+
+function parseJson(value, fallback={}){
+    try{return value?JSON.parse(value):fallback}catch{return fallback}
+}
+
+function sourceBarAge(value){
+    if(!value) return null;
+    const numeric=Number(value);
+    const stamp=Number.isFinite(numeric)&&numeric>1e9 ? (numeric>1e12?numeric:numeric*1000) : Date.parse(value);
+    return Number.isFinite(stamp)?Date.now()-stamp:null;
+}
+
+function markFreshnessWarning(position){
+    const age=sourceBarAge(position.last_evaluated_bar);
+    if(age===null) return "MARK NOT YET EVALUATED";
+    const limit=({Forex:6,Crypto:3,Commodities:12,Stocks:72,ETFs:72,Indices:72,Futures:72})[position.asset_class]||24;
+    return age>limit*3600000?"STALE MARK OR MARKET CLOSED":null;
 }
 
 
@@ -782,6 +860,7 @@ async function loadBotSuggestions(){
             approvalCard.append(suggestionLine("Suggested research setup: "+approval.research_setup.name+" · RESEARCH ONLY"));
             const research=document.createElement("button");research.type="button";research.textContent="Use research setup";
             research.onclick=()=>{
+                clearProtectionContext();
                 document.getElementById("strategy").value=approval.research_setup.strategy_id;
                 document.getElementById("botId").value="manual-paper";
                 document.getElementById("message").textContent=approval.research_setup.name+" selected as a research hypothesis. It is not approved; any paper order still requires a reviewed stop, profit plan, and maximum loss.";
@@ -802,6 +881,7 @@ async function loadBotSuggestions(){
                 suggestionLine(result ? "Historical test: return " + (Number(result.historical_return||0)*100).toFixed(1) + "% · drawdown " + (Number(result.max_drawdown||0)*100).toFixed(1) + "% · Sharpe " + Number(result.sharpe||0).toFixed(2) : "Historical test: not available until this scanner completes its first scan."),
                 suggestionLine("Status: research only. This observation is not calibrated to 85% and cannot approve an order."));
             const use=document.createElement("button");use.type="button";use.textContent="Use bot identity";use.onclick=async()=>{
+                clearProtectionContext();
                 document.getElementById("botId").value=bot.id;
                 document.getElementById("strategy").value=bot.strategy;
                 document.getElementById("strategyVersion").value="1";
@@ -892,11 +972,11 @@ async function refresh() {
         row.innerHTML = `
 
 <td>
-${position.instrument}
+${escapeHtml(position.instrument)}
 </td>
 
 <td>
-${position.bot_id || position.strategy_id || "MANUAL"}
+${escapeHtml(position.strategy_id || "MANUAL")}<br><span class="note">${escapeHtml(position.bot_id || "manual-paper")}</span>
 </td>
 
 <td class="${
@@ -968,6 +1048,30 @@ Close
         body.appendChild(
             row
         );
+
+        const plan=parseJson(position.protection_plan_json,parseJson(position.profit_plan,{}));
+        const state=parseJson(position.plan_state_json,{});
+        const targets=plan.targets||[];
+        let nextTarget="User-defined / none";
+        if(plan.type==="FIXED_1_5R"&&targets[0]) nextTarget=Number(targets[0].price).toPrecision(7);
+        if(plan.type==="SCALE_1R_2R"&&targets.length) nextTarget=Number(targets[state.target_1_filled?1:0].price).toPrecision(7);
+        if(plan.type==="TRAIL_AFTER_1R") nextTarget=state.trail_active?"1 ATR trailing stop":Number(targets[0]?.price||0).toPrecision(7)+" activation";
+        const maxLoss=Number(position.maximum_loss||0);
+        const currentR=maxLoss>0?pnl/maxLoss:0;
+        const freshness=markFreshnessWarning(position);
+        const detail=document.createElement("tr");detail.className="position-detail";
+        detail.innerHTML=`<td colspan="9">
+            ${freshness?'<span class="warning"><strong>'+escapeHtml(freshness)+'</strong></span> · ':''}
+            Stop <strong>${Number(position.stop||0).toPrecision(7)}</strong> ·
+            Next target <strong>${escapeHtml(nextTarget)}</strong> ·
+            Plan <strong>${escapeHtml(plan.label||plan.type||"USER DEFINED")}</strong> ·
+            Planned envelope <strong>${money(maxLoss)}</strong> ·
+            Current R <strong>${currentR.toFixed(2)}R</strong> ·
+            Partial realized <strong>${money(position.realized_pnl)}</strong> ·
+            State <strong>${escapeHtml(state.status||"AWAITING REVIEW")}</strong> ·
+            Last source bar <strong>${escapeHtml(position.last_evaluated_bar||"not evaluated")}</strong>
+        </td>`;
+        body.appendChild(detail);
     }
 }
 
@@ -980,7 +1084,8 @@ async function refreshLiveMarks(){
         if(!response.ok) throw new Error(payload.detail||"mark failed");
         const when=payload.marked_at?new Date(payload.marked_at).toLocaleTimeString():"now";
         status.textContent=(payload.updated||[]).length
-            ? "Paper positions marked from "+payload.source+" at "+when+". "+(payload.failed||[]).length+" instruments could not refresh."
+            ? "Paper positions marked from "+payload.source+" at "+when+". "+(payload.auto_exits||[]).length+" automatic protection exits executed. "
+                +((payload.failed||[]).length?"WARNING: failed refresh for "+payload.failed.join(", ")+".":"All requested instruments refreshed.")
             : "No open paper positions need a market mark.";
         await refresh();
     }catch{
@@ -992,17 +1097,75 @@ async function refreshLiveMarks(){
 async function loadProtectionSuggestions(direction){
     const root=document.getElementById("protectionSuggestions");
     root.textContent="Calculating volatility and structural invalidation…";
-    const params=new URLSearchParams({instrument:document.getElementById("instrument").value.trim(),asset_class:document.getElementById("assetClass").value,direction,notional:document.getElementById("notional").value||"100"});
+    document.getElementById("protectionPlanId").value="";
+    const params=new URLSearchParams({
+        instrument:document.getElementById("instrument").value.trim(),
+        asset_class:document.getElementById("assetClass").value,direction,
+        notional:document.getElementById("notional").value||"100",
+        strategy_id:document.getElementById("strategy").value.trim(),
+        bot_id:document.getElementById("botId").value.trim()
+    });
     try{
         const response=await fetch("/api/local-paper/protection-suggestions?"+params.toString());
         const payload=await response.json();
-        if(!response.ok) throw new Error(payload.detail||"suggestion failed");
+        if(!response.ok) throw new Error(formatApiError(payload.detail||"suggestion failed"));
         document.getElementById("price").value=payload.entry;
         document.getElementById("stop").value=payload.structural_stop;
         document.getElementById("maximumLoss").value=payload.maximum_loss;
+        document.getElementById("planSource").value="FX_SUGGESTED";
+        const risk=payload.risk||{};
+        const panel=document.getElementById("riskPanel");panel.className="risk-panel visible";panel.replaceChildren();
+        const heading=document.createElement("strong");heading.textContent="Maximum-loss calculation";panel.append(heading);
+        const grid=document.createElement("div");grid.className="risk-grid";
+        const fields=[
+            ["Paper equity",money(risk.equity)],[Number(risk.per_trade_risk_pct).toFixed(2)+"% per-trade cap",money(risk.per_trade_risk_cap)],
+            ["Remaining daily capacity",money(risk.remaining_daily_loss_capacity)],["Remaining portfolio capacity",money(risk.remaining_portfolio_risk)],
+            ["Entry",Number(risk.entry).toPrecision(7)],["Protective stop",Number(risk.stop).toPrecision(7)],
+            ["Stop distance",Number(risk.stop_distance).toPrecision(6)+" · "+Number(risk.stop_distance_pct).toFixed(2)+"% · "+Number(risk.stop_distance_atr).toFixed(2)+" ATR"],
+            ["Quantity",Number(risk.quantity).toFixed(6)],["Paper notional",money(risk.notional)],
+            ["Loss at exact stop",money(risk.loss_at_stop)],["Modeled execution allowance",money(risk.modeled_execution_allowance)+" · "+Number(risk.modeled_cost_bps).toFixed(1)+" bps assumption"],
+            ["Planned loss envelope",money(risk.planned_loss_envelope)+" · "+Number(risk.planned_loss_equity_pct).toFixed(4)+"% equity · "+Number(risk.planned_loss_notional_pct).toFixed(3)+"% notional"],
+            ["Maximum notional by risk",money(risk.maximum_notional_by_risk)],
+            ["Market-data timestamp",payload.plans?.[0]?.market_data_timestamp||"unavailable"],
+            ["Plan validity","Five minutes · single use"]
+        ];
+        fields.forEach(([label,value])=>{const item=document.createElement("div");item.className="risk-item";const key=document.createElement("span");key.textContent=label;const val=document.createElement("strong");val.textContent=value;item.append(key,val);grid.append(item)});
+        panel.append(grid);
+        const decision=document.createElement("p");decision.className="risk-decision "+risk.decision;decision.textContent="Risk decision: "+String(risk.decision).replaceAll("_"," ");panel.append(decision);
+        const warning=document.createElement("p");warning.className="note warning";warning.textContent=payload.warning;panel.append(warning);
         root.replaceChildren();
-        (payload.plans||[]).forEach(plan=>{const card=document.createElement("article");card.className="suggestion";const title=document.createElement("strong");title.textContent=plan.label;const detail=suggestionLine(plan.description);const button=document.createElement("button");button.type="button";button.textContent="Use this profit plan";button.onclick=()=>{document.getElementById("profitPlan").value=plan.id+": "+plan.description;document.getElementById("message").textContent="Protected "+direction+" plan applied. Review the stop and maximum loss before submitting."};card.append(title,detail,button);root.append(card)});
-        document.getElementById("message").textContent="Bot identity and a research-only "+direction+" stop are ready. Choose one profit plan below.";
+        (payload.plans||[]).forEach(plan=>{
+            const card=document.createElement("article");card.className="suggestion";
+            const title=document.createElement("strong");title.textContent=plan.label;
+            card.append(title);
+            (plan.targets||[]).forEach((target,index)=>card.append(suggestionLine(
+                (plan.type==="TRAIL_AFTER_1R"?"Trail activation":"Target "+(index+1))+": "+Number(target.price).toPrecision(7)
+                +" · "+Number(target.move_pct).toFixed(2)+"% move · "+Number(target.r_multiple).toFixed(1)+"R"
+                +(plan.type==="TRAIL_AFTER_1R"?" · no sale at activation":" · close "+Number(target.quantity_fraction*100).toFixed(0)+"% · gross "+money(target.estimated_gross_profit))
+            )));
+            card.append(
+                suggestionLine(plan.management),
+                suggestionLine("Gross target profit: "+(plan.gross_target_profit==null?"variable":money(plan.gross_target_profit))+" · estimated net: "+(plan.estimated_net_profit==null?"variable":money(plan.estimated_net_profit))
+                    +(plan.net_reward_risk==null?"":" · net reward/risk "+Number(plan.net_reward_risk).toFixed(2)+"R")),
+                suggestionLine("Best suited to: "+plan.best_suited_to),
+                suggestionLine("Tradeoff: "+plan.tradeoff)
+            );
+            const button=document.createElement("button");button.type="button";
+            button.textContent=risk.decision==="PASS"?"Use this protected plan":"Risk capacity requires adjustment";
+            button.disabled=risk.decision!=="PASS";
+            button.onclick=()=>{
+                document.querySelectorAll("#protectionSuggestions .suggestion").forEach(item=>item.classList.remove("selected"));card.classList.add("selected");
+                document.getElementById("protectionPlanId").value=plan.plan_id;
+                document.getElementById("planSource").value="FX_SUGGESTED";
+                document.getElementById("profitPlan").value=plan.label+" — "+plan.management;
+                document.getElementById("maximumLoss").value=Number(plan.maximum_loss).toFixed(6);
+                document.getElementById("message").textContent="Protected "+direction+" plan selected. It expires in five minutes and will be checked again before submission.";
+            };
+            card.append(button);root.append(card)
+        });
+        document.getElementById("message").textContent=risk.decision==="PASS"
+            ? "Fresh "+direction+" protection is ready. Review the full calculation and select one plan."
+            : "The requested notional exceeds current risk capacity. Reduce it to "+money(risk.maximum_notional_by_risk)+" or less and recalculate.";
     }catch(error){root.textContent=error.message||"Protection suggestions are temporarily unavailable.";}
 }
 
@@ -1077,7 +1240,13 @@ async function submitOrder(
             document.getElementById("profitPlan").value.trim(),
 
         maximum_loss:
-            Number(document.getElementById("maximumLoss").value)
+            Number(document.getElementById("maximumLoss").value),
+
+        protection_plan_id:
+            document.getElementById("protectionPlanId").value || null,
+
+        plan_source:
+            document.getElementById("planSource").value
     };
 
 
@@ -1121,8 +1290,7 @@ async function submitOrder(
         )
 
         : (
-            result.detail
-            || "Order rejected."
+            formatApiError(result.detail || "Order rejected.")
         )
     );
 
@@ -1145,6 +1313,7 @@ const paperPresets = {
 async function applyPreset(){
     const preset = paperPresets[document.getElementById("preset").value];
     if(!preset){ return; }
+    clearProtectionContext();
     document.getElementById("instrument").value = preset.instrument;
     document.getElementById("assetClass").value = preset.assetClass;
     document.getElementById("strategy").value = preset.strategy;
@@ -1210,8 +1379,7 @@ async function closePosition(
             await response.json();
 
         alert(
-            result.detail
-            || "Could not close."
+            formatApiError(result.detail || "Could not close.")
         );
     }
 

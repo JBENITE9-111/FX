@@ -33,6 +33,11 @@ This is an evidence ledger, not a profitability claim.
   registry, immutable raw and Parquet artifacts, data-quality checks, dated
   analogues, and chronological cost-stressed research exams. The first real
   cross-asset baseline is retained locally; no examined strategy is eligible.
+- Local-paper protection plans are now context-bound, expiring, single-use,
+  and backed by a detailed 0.25%-equity risk calculation. The authenticated
+  scheduler enforces fixed, scaled, trailing, and newly validated user-defined
+  stops in paper mode and journals idempotent automatic exits. Legacy positions
+  remain preserved and explicitly await review.
 
 ## Running state at verification
 

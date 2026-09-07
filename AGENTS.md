@@ -84,6 +84,15 @@ if profit_plan is None:
 
 Never create automatic naked positions.
 
+Generated local-paper protection plans are versioned, context-bound, expiring,
+and single-use. Use the existing `services/local_paper` broker and monitor.
+Automatic stop/target/trailing execution is local-paper only, uses verified
+source bars once, resolves unknown same-bar order conservatively stop-first,
+and records structured operations and training evidence. Never describe the
+modeled loss envelope as guaranteed under gaps or unavailable liquidity.
+Legacy protection text and levels remain reviewable and must never acquire
+automatic execution authority without a new deterministic validation.
+
 ## Forbidden behavior
 
 Do not implement or activate:
