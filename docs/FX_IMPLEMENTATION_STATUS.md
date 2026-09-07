@@ -29,6 +29,10 @@ This is an evidence ledger, not a profitability claim.
 - The Git remote is `https://github.com/JBENITE9-111/FX.git` on `main`.
 - Ruflo 3.38.21 is installed as a bounded Codex coordination layer. See
   `docs/RUFLO_CODEX_ARCHITECTURE.md` for the verified limitations.
+- Historical Market Memory now has a source/dataset/artifact/experiment
+  registry, immutable raw and Parquet artifacts, data-quality checks, dated
+  analogues, and chronological cost-stressed research exams. The first real
+  cross-asset baseline is retained locally; no examined strategy is eligible.
 
 ## Running state at verification
 
@@ -53,8 +57,10 @@ positions; marks and P&L move only when verified market updates are received.
    spread/slippage/cost stress, parameter stability, Monte Carlo,
    multiple-testing controls, locked holdout, independent replay, and paper
    examination. Therefore paper eligibility remains zero.
-2. **Experiment ledger:** model runs need immutable manifests and a complete
-   research-family trial count so failed searches cannot disappear.
+2. **Experiment breadth:** Market Memory now retains immutable first-phase
+   strategy-exam manifests. The broader model-training system still needs a
+   unified research-family trial count so failed parameter searches cannot
+   disappear.
 3. **Specialist data:** pairs, cross-sectional, regime, carry, positioning,
    activist, and options strategies still need their required verified inputs.
    FX must keep returning `NO_TRADE` where evidence is missing.

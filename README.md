@@ -100,6 +100,12 @@ Storage:
 - SQLite: local app state, local paper positions/orders, journals, agent runs, cache
 - TurboVec: semantic memory only
 
+Historical Market Memory now retains bounded, content-addressed daily research
+artifacts with source licensing metadata, checksums, UTC/OHLC validation,
+leakage-aware analogues, and chronological cost-stressed strategy exams. All
+exams remain `RESEARCH_ONLY` and `NOT_ELIGIBLE`. See
+`docs/FX_HISTORICAL_MARKET_MEMORY.md`.
+
 ## Important current UI files
 
 ```text

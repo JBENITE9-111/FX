@@ -14,6 +14,7 @@ from backend.app.web.chat import router as web_router
 from backend.app.api.campaigns import router as campaigns_router
 from backend.app.api.reporting import router as reporting_router
 from backend.app.api.learning import router as learning_api_router
+from backend.app.api.market_memory import router as market_memory_router
 from backend.app.web.learning import router as learning_web_router
 
 
@@ -44,6 +45,7 @@ app.include_router(web_router)
 app.include_router(campaigns_router)
 app.include_router(reporting_router)
 app.include_router(learning_api_router)
+app.include_router(market_memory_router)
 app.include_router(learning_web_router)
 
 

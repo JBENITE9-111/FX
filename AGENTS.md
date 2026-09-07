@@ -184,6 +184,23 @@ Protect against:
 
 Use chronological splits, OOS, walk-forward, cost stress, Monte Carlo, parameter stability, and locked holdouts.
 
+## Historical Market Memory
+
+Retained research history lives under `data/historical/` with its authoritative
+registry at `data/historical/registry.sqlite3`. Use
+`services/market_memory/` and `scripts/build-market-memory.py`; do not create a
+parallel historical store.
+
+Raw and curated artifacts are immutable and content addressed. Preserve source,
+license status, UTC timestamps, schema version, checksums, coverage, quality,
+lineage, Git commit, and failed experiment results. Never invent missing bars,
+events, corporate actions, constituents, volume, spreads, or provenance.
+
+Historical analogues are evidence rather than predictions. Cite artifact ID,
+dates, sample size, downside, and limitations. A quality status other than
+`PASS` blocks promotion. Market Memory cannot bypass deterministic risk or
+authorize paper/live execution.
+
 ## Risk sovereignty
 
 No LLM may bypass deterministic risk.
